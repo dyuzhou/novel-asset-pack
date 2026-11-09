@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>凡人修仙传 · AI 漫剧资产报告</title>
+<style>
+:root{--paper:#f5f1e8;--card:#fffdf8;--ink:#2b2620;--ink2:#6b6157;--line:#e4dcc9;--accent:#8b2f2f;--gold:#a8834f;--green:#3e6b4f;--amber:#b07b2e;--side:#221f1a}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Microsoft YaHei","PingFang SC","Noto Sans CJK SC",system-ui,sans-serif;background:var(--paper);color:var(--ink);line-height:1.65}
+.layout{display:flex;min-height:100vh}
+aside{width:248px;flex:0 0 248px;background:var(--side);color:#d8d2c4;padding:22px 0 90px;position:sticky;top:0;height:100vh;overflow-y:auto}
+aside h1{font-size:17px;color:#f2ede0;padding:0 20px 4px;letter-spacing:1px}
+aside .sub{font-size:12px;color:#9a917e;padding:0 20px 14px;border-bottom:1px solid #3a352c}
+aside nav a{display:flex;justify-content:space-between;align-items:center;padding:9px 20px;color:#c9c2b2;text-decoration:none;font-size:14px;border-left:3px solid transparent}
+aside nav a:hover{background:#2c2820;color:#f2ede0}
+aside nav a.active{border-left-color:var(--accent);background:#2c2820;color:#fff}
+aside nav a .n{font-size:11px;color:#877e6b;background:#332e25;border-radius:9px;padding:1px 8px}
+aside .tools{position:fixed;bottom:0;left:0;width:248px;padding:12px 20px;background:#1a1712;border-top:1px solid #3a352c;display:flex;gap:8px}
+main{flex:1;padding:28px 34px 80px;max-width:1120px}
+header.top{margin-bottom:22px}
+header.top h2{font-size:24px}
+header.top .meta{color:var(--ink2);font-size:13px;margin-top:4px}
+section{margin-bottom:44px;scroll-margin-top:16px}
+section>h3{font-size:19px;padding-bottom:8px;border-bottom:2px solid var(--line);margin-bottom:16px;display:flex;align-items:center;gap:10px}
+section>h3 .en{font-size:12px;color:var(--gold);font-weight:400;letter-spacing:2px}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px 18px;box-shadow:0 1px 3px rgba(60,50,30,.06)}
+.card h4{font-size:16px;margin-bottom:8px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.card .row{font-size:13.5px;margin:5px 0;color:var(--ink)}
+.card .row b{color:var(--ink2);font-weight:600;margin-right:6px;flex:0 0 auto}
+.kv{display:flex;gap:6px;font-size:13.5px;margin:5px 0}
+.chip{display:inline-block;font-size:11.5px;background:#efe8d8;border:1px solid var(--line);border-radius:20px;padding:1px 9px;color:var(--ink2)}
+.chip.red{background:#f7e5e0;border-color:#e5c0b5;color:var(--accent)}
+.chip.green{background:#e2eee6;border-color:#c2d8c9;color:var(--green)}
+.chip.amber{background:#f5ead5;border-color:#e3cfa4;color:var(--amber)}
+.swatch{display:inline-block;width:13px;height:13px;border-radius:3px;border:1px solid rgba(0,0,0,.18);vertical-align:-2px;margin-right:5px}
+.anchor-box{background:#f2eee2;border:1px solid var(--gold);border-left:4px solid var(--gold);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.warn-box{background:#f9ece8;border:1px solid #e0b8ab;border-left:4px solid var(--accent);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.prompt{margin-top:10px;border-top:1px dashed var(--line);padding-top:8px}
+.p-head{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--ink2);margin-bottom:4px}
+.prompt pre{white-space:pre-wrap;word-break:break-all;background:#2f2b24;color:#e8e2d2;border-radius:8px;padding:10px 12px;font-size:12.5px;font-family:Consolas,Menlo,monospace}
+.copy{font-size:12px;background:var(--accent);color:#fff;border:none;border-radius:6px;padding:3px 12px;cursor:pointer}
+.copy:hover{background:#a13b3b}
+.copy.ok{background:var(--green)}
+table.periods{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden;font-size:13.5px;margin-bottom:18px}
+table.periods th{background:#efe9da;text-align:left;padding:8px 12px;font-weight:600;white-space:nowrap}
+table.periods td{padding:8px 12px;border-top:1px solid var(--line);vertical-align:top}
+table.periods td.mono{font-family:Consolas,Menlo,monospace;font-size:12px;color:var(--ink2)}
+.img-box{margin-top:10px}
+.img-box img{max-width:100%;border-radius:8px;border:1px solid var(--line)}
+.img-ph{border:1.5px dashed #cfc5ab;border-radius:8px;color:#a2987f;font-size:12px;text-align:center;padding:18px 8px}
+.progress{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px 18px;margin-bottom:14px}
+.bar{height:10px;background:#e8e1cf;border-radius:6px;overflow:hidden;margin:8px 0 12px}
+.bar i{display:block;height:100%;background:linear-gradient(90deg,var(--green),#5d8f6f)}
+.steps{list-style:none}
+.steps li{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px dashed var(--line);font-size:14px}
+.steps li:last-child{border-bottom:none}
+.steps .note{color:var(--ink2);font-size:12.5px;margin-left:auto;text-align:right;max-width:46%}
+.counts{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px}
+.counts .card{flex:1;min-width:130px;text-align:center;padding:12px}
+.counts .num{font-size:24px;font-weight:700;color:var(--accent)}
+.counts .lbl{font-size:12px;color:var(--ink2)}
+dl.defs{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 18px}
+dl.defs dt{font-weight:600;color:var(--ink2);font-size:13px;margin-top:10px}
+dl.defs dt:first-child{margin-top:0}
+dl.defs dd{font-size:14px;margin-top:2px}
+.lib-group{margin-bottom:22px}
+.lib-group>h4{font-size:15px;color:var(--gold);margin-bottom:8px}
+.lib-item{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px 14px;margin-bottom:8px}
+.lib-item .t{display:flex;justify-content:space-between;align-items:center;font-size:13.5px;font-weight:600;margin-bottom:4px}
+@media print{aside{display:none}.layout{display:block}}
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside>
+    <h1>凡人修仙传</h1>
+    <div class="sub">novel-asset-pack · 资产报告</div>
+    <nav id="nav"></nav>
+    <div class="tools"><button class="copy" id="export-btn" style="flex:1">导出 JSON</button></div>
+  </aside>
+  <main id="panels"></main>
+</div>
+<script>window.__ASSET_REPORT__ = {"generatedAt":"2026-11-09 02:48:43","doc":{"meta":{"drama":"凡人修仙传","source":"开篇：七玄门 → 黄枫谷","created":"2026-11-09","generator":"novel-asset-pack"},"project":{"aspect_ratio":"16:9","style_anchor":"3D 写实国风仙侠，UE5 引擎质感，PBR 材质，电影级光影，低饱和厚重色调，人物比例写实，服饰符合门派阶级设定，画面稳定统一，禁止 Q 版、卡通渲染、过度美颜","faithful":true,"quality_common":"8K 超清，超高细节，稳定构图，无畸形肢体","negative_common":"畸形、多指、模糊、水印、画风突变、比例失调、Q 版、卡通渲染、过度美颜"},"world":{"background":"凡人修仙世界：凡人王朝与江湖门派之下，修仙宗门超然世外，凡人不知仙凡之隔","power_system":"江湖武功与修仙炼气并行；修仙境界炼气、筑基、结丹层层递进，寿命随境界延长","social_structure":"凡人村庄—城镇—王朝层层隶属；江湖门派管武林恩怨，修仙宗门不问世事，散修游走底层","architecture":"凡人建筑青石台基、木构飞檐；修仙宗门殿宇依山而建，石阶云雾、禁制光幕隐现","costume_rules":"江湖门派按阶级配服：杂役短打、弟子粗麻、首领绸缎；修仙门派道袍制式统一，阶级看配饰与衣料","color_system":"低饱和青灰为基底，晨雾冷色为环境主调；修仙门派以暖金、米黄区分凡俗，暖色只做点缀不抢主体"},"factions":[{"id":"faction_qixuanmen","name":"七玄门","positioning":"越国江湖门派，凡俗武林势力","class_system":["杂役","记名弟子","外门弟子","内门弟子","堂主","门主"],"costume_rule":"杂役穿青黑粗布短打；记名与外门弟子穿青灰粗麻袍，腰系木牌；内门以上改青色细布；堂主以上玄色绸缎加玄铁配饰","main_color":"青灰","pattern":"玄字纹","prompt_body":"平视全景；江湖门派山门；青石门楼立在崖壁要道，铁索吊桥连栈道；门楼雕纹、铁索与栈道木板细节清晰；晨雾侧光，冷色调，远景山影层叠；"},{"id":"faction_huangfenggu","name":"黄枫谷","positioning":"越国修仙宗门，仙凡之隔的另一层世界","class_system":["弟子","长老","掌门"],"costume_rule":"弟子米黄道袍束同色腰带；长老加披帛与玉饰；掌门袍绣金线枫叶，持门派法器","main_color":"米黄","pattern":"枫叶纹","prompt_body":"平视全景；修仙宗门庭院；黄枫夹道石桥连殿，殿宇错落；枫叶与殿宇彩绘清晰；午后柔光，暖色调，轻雾浮空；"}],"characters":[{"id":"char_hanli","name":"韩立","gender":"男","age":"16 岁入七玄门","identity":"贫家少年，先后为七玄门杂役弟子、黄枫谷弟子","class":"记名弟子 → 弟子","faction_id":"faction_qixuanmen","personality":"谨慎坚韧，藏拙内敛，遇险先求自保","identity_anchor":"相貌普通，肤色微黑，鼻梁挺直，中等身形偏瘦","fixed_features":"","periods":[{"period_name":"七玄门杂役弟子期","is_base":true,"generation_mode":"fresh_generation","reference_image":null,"variation_reason":null,"source_described":null,"appearance":"少年，肤色微黑，身形偏瘦，眼神沉静不像同龄人","costume":"青灰色粗麻弟子袍，腰系木牌，布鞋绑腿","prompt_body":"中景平视；少年男修，相貌普通，肤色微黑，鼻梁挺直，中等身形偏瘦，穿青灰色粗麻弟子袍，腰系木牌；山门石阶前，云雾缭绕，古松与青石门楼可见；粗麻衣料褶皱与石阶苔痕清晰；侧逆光，冷色晨雾，轮廓光轻微；"},{"period_name":"黄枫谷弟子期","is_base":false,"generation_mode":"reference_img2img","reference_image":"han_li/period-01.png","variation_reason":"离开七玄门加入黄枫谷：服饰换米黄道袍与玉牌，年龄由少年长为青年，气质转沉稳；脸型与五官以基准期参考图为准只做微调","source_described":null,"appearance":"青年，相貌不变，肤色仍微黑，身形清瘦，气质沉稳","costume":"米黄色道袍，同色腰带，腰系玉牌","prompt_body":"中景平视；青年男修，相貌普通，肤色微黑，鼻梁挺直，中等身形清瘦，穿米黄色道袍，腰系玉牌；黄枫谷庭院，黄枫夹道，石桥殿宇隐现；道袍布纹与玉牌温润光泽清晰；午后柔光，暖色调，轻雾浮空；"}]},{"id":"char_modafu","name":"墨大夫","gender":"男","age":"六十上下","identity":"七玄门神手谷谷主，韩立的师父","class":"谷主","faction_id":"faction_qixuanmen","personality":"表面慈和内里阴鸷，惜命多疑，对功法执着","identity_anchor":"面色蜡黄，蓄短须，眼窝略深，身形中等微驼","fixed_features":"","periods":[{"period_name":"神手谷谷主期","is_base":true,"generation_mode":"fresh_generation","reference_image":null,"variation_reason":null,"source_described":null,"appearance":"老者，面色蜡黄，蓄着短须，眼神慈和中偶露精光","costume":"深灰色绸缎长袍，外罩褐色药袍，手持木杖","prompt_body":"中景平视；老者男修，面色蜡黄，蓄短须，眼窝略深，身形中等微驼，穿深灰色绸缎长袍，外罩褐色药袍，手持木杖；神手谷药园茅屋前，竹篱药田环绕；绸缎光泽与药袍褶皱清晰，木杖纹理可见；侧光，暮色暖调，人物半明半暗；"}]}],"scenes":[{"id":"scene_caixiashan","name":"彩霞山七玄门山门","era":"韩立入门时期","location":"越国彩霞山主峰要道","atmosphere":"肃穆清冷，江湖气重","lighting":"晨雾侧逆光，山影层叠","key_elements":["百丈崖壁","青石门楼","铁索吊桥","崖壁栈道"],"image":null,"prompt_body":"平视全景；高山江湖门派山门；百丈崖壁下青石门楼，铁索吊桥连栈道；崖壁纹理、门楼雕纹与铁索细节清晰；侧逆光，晨雾体积光，冷色调远景层叠；"},{"id":"scene_shenshougu","name":"神手谷药园","era":"韩立杂役弟子时期","location":"彩霞山神手谷内","atmosphere":"幽静，药香，与世隔绝","lighting":"顶光穿透谷口，暖色午后","key_elements":["竹篱药田","木架茅屋","石臼药碾"],"image":null,"prompt_body":"平视全景；山谷药园；竹篱围出药田垄沟，木架茅屋，石臼药碾散置；药苗行列与竹篱编织纹理清晰；顶光穿透谷口，暖色午后，浮尘微光；"}],"props":[{"id":"prop_mupai","name":"弟子木牌","owner":"七玄门弟子","material":"粗木，系麻绳","usage":"身份标识，入门凭证","source_ref":{"chapter":null,"quote":"腰间挂着的门派木牌"},"image":null,"prompt_body":"特写俯视；粗木腰牌，表面刻有门派编号；散落青石桌面，麻绳系带垂落；木纹与刻痕清晰，麻绳纤维可见；柔和顶光，浅景深；"},{"id":"prop_yaochu","name":"药锄","owner":"神手谷药园","material":"铁头木柄","usage":"翻土采药，韩立日常劳作用具","source_ref":{"chapter":null,"quote":"药园里翻土的旧锄头"},"image":null,"prompt_body":"特写平视；铁头木柄药锄，铁头有使用磨痕；斜倚竹篱，旁搁药篓；铁锈斑驳与木柄包浆清晰；侧光，午后暖调，浅景深；"}],"prompt_library":{"note":"提示词库由 render 自动按「风格锚点 + prompt_body + 质量词 + 统一负面词」拼装，此字段仅供人读备注"},"pipeline":{"steps":[{"id":"config","label":"项目配置与风格锚点","status":"done","note":"默认 16:9 · 忠实原著 · 国风仙侠锚点已确认"},{"id":"world","label":"世界观与势力","status":"done","note":"2 个势力，阶级与服饰区分完成"},{"id":"characters","label":"角色资产与时期","status":"done","note":"2 名角色 · 3 个时期，衍生期走图生图"},{"id":"scenes","label":"场景资产","status":"done","note":"2 个场景，关键元素可画可核对"},{"id":"props","label":"道具资产","status":"done","note":"2 件叙事道具"},{"id":"validate","label":"质量门校验","status":"done","note":"全部通过"},{"id":"report","label":"HTML 报告输出","status":"done","note":"凡人修仙传-assets-report.html"}]}},"counts":{"characters":2,"periods":3,"factions":2,"scenes":2,"props":2,"stepsDone":7,"stepsTotal":7},"assembled":{"fullById":{"period:char_hanli:0":{"full":"3D 写实国风仙侠，UE5 引擎质感，PBR 材质，电影级光影，低饱和厚重色调，人物比例写实，服饰符合门派阶级设定，画面稳定统一，禁止 Q 版、卡通渲染、过度美颜；中景平视；少年男修，相貌普通，肤色微黑，鼻梁挺直，中等身形偏瘦，穿青灰色粗麻弟子袍，腰系木牌；山门石阶前，云雾缭绕，古松与青石门楼可见；粗麻衣料褶皱与石阶苔痕清晰；侧逆光，冷色晨雾，轮廓光轻微；8K 超清，超高细节，稳定构图，无畸形肢体；负面提示词：畸形、多指、模糊、水印、画风突变、比例失调、Q 版、卡通渲染、过度美颜","img":null,"reference":null},"period:char_hanli:1":{"full":"以参考图为基础，保持面部特征与体型不变，仅调整：离开七玄门加入黄枫谷：服饰换米黄道袍与玉牌，年龄由少年长为青年，气质转沉稳；脸型与五官以基准期参考图为准只做微调；3D 写实国风仙侠，UE5 引擎质感，PBR 材质，电影级光影，低饱和厚重色调，人物比例写实，服饰符合门派阶级设定，画面稳定统一，禁止 Q 版、卡通渲染、过度美颜；中景平视；青年男修，相貌普通，肤色微黑，鼻梁挺直，中等身形清瘦，穿米黄色道袍，腰系玉牌；黄枫谷庭院，黄枫夹道，石桥殿宇隐现；道袍布纹与玉牌温润光泽清晰；午后柔光，暖色调，轻雾浮空；8K 超清，超高细节，稳定构图，无畸形肢体；负面提示词：畸形、多指、模糊、水印、画风突变、比例失调、Q 版、卡通渲染、过度美颜","img":null,"reference":"han_li/period-01.png"},"period:char_modafu:0":{"full":"3D 写实国风仙侠，UE5 引擎质感，PBR 材质，电影级光影，低饱和厚重色调，人物比例写实，服饰符合门派阶级设定，画面稳定统一，禁止 Q 版、卡通渲染、过度美颜；中景平视；老者男修，面色蜡黄，蓄短须，眼窝略深，身形中等微驼，穿深灰色绸缎长袍，外罩褐色药袍，手持木杖；神手谷药园茅屋前，竹篱药田环绕；绸缎光泽与药袍褶皱清晰，木杖纹理可见；侧光，暮色暖调，人物半明半暗；8K 超清，超高细节，稳定构图，无畸形肢体；负面提示词：畸形、多指、模糊、水印、画风突变、比例失调、Q 版、卡通渲染、过度美颜","img":null,"reference":null},"faction:faction_qixuanmen":{"full":"3D 写实国风仙侠，UE5 引擎质感，PBR 材质，电影级光影，低饱和厚重色调，人物比例写实，服饰符合门派阶级设定，画面稳定统一，禁止 Q 版、卡通渲染、过度美颜；平视全景；江湖门派山门；青石门楼立在崖壁要道，铁索吊桥连栈道；门楼雕纹、铁索与栈道木板细节清晰；晨雾侧光，冷色调，远景山影层叠；8K 超清，超高细节，稳定构图，无畸形肢体；负面提示词：畸形、多指、模糊、水印、画风突变、比例失调、Q 版、卡通渲染、过度美颜","img":null,"reference":null},"faction:faction_huangfenggu":{"full":"3D 写实国风仙侠，UE5 引擎质感，PBR 材质，电影级光影，低饱和厚重色调，人物比例写实，服饰符合门派阶级设定，画面稳定统一，禁止 Q 版、卡通渲染、过度美颜；平视全景；修仙宗门庭院；黄枫夹道石桥连殿，殿宇错落；枫叶与殿宇彩绘清晰；午后柔光，暖色调，轻雾浮空；8K 超清，超高细节，稳定构图，无畸形肢体；负面提示词：畸形、多指、模糊、水印、画风突变、比例失调、Q 版、卡通渲染、过度美颜","img":null,"reference":null},"scene:scene_caixiashan":{"full":"3D 写实国风仙侠，UE5 引擎质感，PBR 材质，电影级光影，低饱和厚重色调，人物比例写实，服饰符合门派阶级设定，画面稳定统一，禁止 Q 版、卡通渲染、过度美颜；平视全景；高山江湖门派山门；百丈崖壁下青石门楼，铁索吊桥连栈道；崖壁纹理、门楼雕纹与铁索细节清晰；侧逆光，晨雾体积光，冷色调远景层叠；8K 超清，超高细节，稳定构图，无畸形肢体；负面提示词：畸形、多指、模糊、水印、画风突变、比例失调、Q 版、卡通渲染、过度美颜","img":null,"reference":null},"scene:scene_shenshougu":{"full":"3D 写实国风仙侠，UE5 引擎质感，PBR 材质，电影级光影，低饱和厚重色调，人物比例写实，服饰符合门派阶级设定，画面稳定统一，禁止 Q 版、卡通渲染、过度美颜；平视全景；山谷药园；竹篱围出药田垄沟，木架茅屋，石臼药碾散置；药苗行列与竹篱编织纹理清晰；顶光穿透谷口，暖色午后，浮尘微光；8K 超清，超高细节，稳定构图，无畸形肢体；负面提示词：畸形、多指、模糊、水印、画风突变、比例失调、Q 版、卡通渲染、过度美颜","img":null,"reference":null},"prop:prop_mupai":{"full":"3D 写实国风仙侠，UE5 引擎质感，PBR 材质，电影级光影，低饱和厚重色调，人物比例写实，服饰符合门派阶级设定，画面稳定统一，禁止 Q 版、卡通渲染、过度美颜；特写俯视；粗木腰牌，表面刻有门派编号；散落青石桌面，麻绳系带垂落；木纹与刻痕清晰，麻绳纤维可见；柔和顶光，浅景深；8K 超清，超高细节，稳定构图，无畸形肢体；负面提示词：畸形、多指、模糊、水印、画风突变、比例失调、Q 版、卡通渲染、过度美颜","img":null,"reference":null},"prop:prop_yaochu":{"full":"3D 写实国风仙侠，UE5 引擎质感，PBR 材质，电影级光影，低饱和厚重色调，人物比例写实，服饰符合门派阶级设定，画面稳定统一，禁止 Q 版、卡通渲染、过度美颜；特写平视；铁头木柄药锄，铁头有使用磨痕；斜倚竹篱，旁搁药篓；铁锈斑驳与木柄包浆清晰；侧光，午后暖调，浅景深；8K 超清，超高细节，稳定构图，无畸形肢体；负面提示词：畸形、多指、模糊、水印、画风突变、比例失调、Q 版、卡通渲染、过度美颜","img":null,"reference":null}}},"sourceFile":"凡人修仙传-开篇-assets.json"};</script>
+<script>
+(function () {
+  var R = window.__ASSET_REPORT__;
+  var D = R.doc, A = R.assembled.fullById, C = R.counts;
+  var copyTexts = [];
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function copyBtn(text) {
+    var i = copyTexts.push(text) - 1;
+    return '<button class="copy" data-copy="' + i + '">复制</button>';
+  }
+  function chip(t, cls) { return '<span class="chip ' + (cls || '') + '">' + esc(t) + '</span>'; }
+  function promptBox(key, tag) {
+    var ref = A[key];
+    if (!ref) return '';
+    var img = '';
+    if (ref.img) img = '<div class="img-box"><img src="' + ref.img + '" alt=""></div>';
+    else img = '<div class="img-box"><div class="img-ph">出图后放入 images/ 目录即可显示</div></div>';
+    return '<div class="prompt"><div class="p-head"><span>' + esc(tag || '完整提示词（风格锚点已注入）') + '</span>' + copyBtn(ref.full) + '</div><pre>' + esc(ref.full) + '</pre>' + img + '</div>';
+  }
+  function modeChip(p) {
+    if (p.is_base) return chip('基准期 · 首图', 'green');
+    if ((p.generation_mode || 'reference_img2img') === 'reference_img2img') return chip('衍生期 · 图生图', 'amber');
+    return chip('衍生期 · 原著幻化重开', 'red');
+  }
+
+  function sec(id, zh, en, body, count) {
+    return '<section id="' + id + '"><h3>' + esc(zh) + ' <span class="en">' + esc(en) + '</span>' + (count != null ? '<span class="chip">' + count + '</span>' : '') + '</h3>' + body + '</section>';
+  }
+
+  var P = D.project || {}, W = D.world || {};
+
+  /* ---- 进度总览 ---- */
+  var stepsHtml = (D.pipeline && D.pipeline.steps || []).map(function (s) {
+    var cls = s.status === 'done' ? 'green' : s.status === 'in_progress' ? 'amber' : '';
+    var txt = s.status === 'done' ? '完成' : s.status === 'in_progress' ? '进行中' : '待开始';
+    return '<li>' + chip(txt, cls) + '<span>' + esc(s.label) + '</span>' + (s.note ? '<span class="note">' + esc(s.note) + '</span>' : '') + '</li>';
+  }).join('');
+  var pct = C.stepsTotal ? Math.round(C.stepsDone / C.stepsTotal * 100) : 0;
+  var overview = '<div class="progress"><b>总进度</b>（' + C.stepsDone + '/' + C.stepsTotal + ' 步）'
+    + '<div class="bar"><i style="width:' + pct + '%"></i></div>'
+    + '<ul class="steps">' + stepsHtml + '</ul></div>'
+    + '<div class="counts">'
+    + '<div class="card"><div class="num">' + C.characters + '</div><div class="lbl">角色 · ' + C.periods + ' 个时期</div></div>'
+    + '<div class="card"><div class="num">' + C.factions + '</div><div class="lbl">势力</div></div>'
+    + '<div class="card"><div class="num">' + C.scenes + '</div><div class="lbl">场景</div></div>'
+    + '<div class="card"><div class="num">' + C.props + '</div><div class="lbl">道具</div></div>'
+    + '</div>';
+
+  /* ---- 项目配置 ---- */
+  var faithful = P.faithful === false ? chip('改编模式（异常：本报告不应存在）', 'red') : chip('忠实原著 · 不改写/不删减/不加钩子', 'green');
+  var config = '<div class="cards">'
+    + '<div class="card"><h4>画幅与模式</h4><div class="kv"><b>画幅</b>' + chip(P.aspect_ratio || '16:9') + '</div><div class="kv"><b>策略</b>' + faithful + '</div></div>'
+    + '<div class="card"><h4>全局风格锚点（注入每条提示词）</h4><div class="anchor-box">' + esc(P.style_anchor || '（未填写）') + '</div></div>'
+    + '<div class="card"><h4>统一质量词</h4><div class="anchor-box">' + esc(P.quality_common || '') + '</div></div>'
+    + '<div class="card"><h4>统一负面提示词</h4><div class="warn-box">' + esc(P.negative_common || '') + '</div></div>'
+    + '</div>';
+
+  /* ---- 世界观 ---- */
+  var world = '<dl class="defs">'
+    + '<dt>世界背景</dt><dd>' + esc(W.background) + '</dd>'
+    + '<dt>修炼 / 社会体系</dt><dd>' + esc(W.power_system) + '</dd>'
+    + '<dt>社会结构</dt><dd>' + esc(W.social_structure) + '</dd>'
+    + '<dt>建筑风格</dt><dd>' + esc(W.architecture) + '</dd>'
+    + '<dt>服饰规则</dt><dd>' + esc(W.costume_rules) + '</dd>'
+    + '<dt>色彩体系</dt><dd>' + esc(W.color_system) + '</dd>'
+    + '</dl>';
+
+  /* ---- 势力与阶级 ---- */
+  var factions = (D.factions || []).map(function (f) {
+    var ref = A['faction:' + f.id] || {};
+    return '<div class="card"><h4>' + esc(f.name) + (f.main_color ? '<span class="chip"><i class="swatch" style="background:' + esc(f.main_color) + '"></i>主色 ' + esc(f.main_color) + '</span>' : '') + '</h4>'
+      + '<div class="kv"><b>定位</b>' + esc(f.positioning) + '</div>'
+      + '<div class="kv"><b>阶级体系</b>' + (Array.isArray(f.class_system) ? f.class_system.map(function (x) { return chip(x); }).join(' ') : esc(f.class_system)) + '</div>'
+      + '<div class="kv"><b>服饰规则</b>' + esc(f.costume_rule) + '</div>'
+      + '<div class="kv"><b>纹样</b>' + esc(f.pattern) + '</div>'
+      + promptBox('faction:' + f.id, '势力提示词（风格锚点已注入）') + '</div>';
+  }).join('');
+
+  /* ---- 角色资产 ---- */
+  var factionName = {};
+  (D.factions || []).forEach(function (f) { factionName[f.id] = f.name; });
+  var characters = (D.characters || []).map(function (c) {
+    var head = '<h4>' + esc(c.name)
+      + chip(c.gender || '?') + chip(c.age || '?')
+      + (c.faction_id && factionName[c.faction_id] ? chip(factionName[c.faction_id]) : chip('散修/无势力', 'amber'))
+      + chip(c.class || '') + '</h4>'
+      + '<div class="kv"><b>身份</b>' + esc(c.identity) + '</div>'
+      + '<div class="kv"><b>性格</b>' + esc(c.personality) + '</div>'
+      + '<div class="kv"><b>固定主体锚点</b><span style="color:var(--accent)">' + esc(c.identity_anchor) + '</span></div>'
+      + (c.fixed_features ? '<div class="warn-box"><b>原著固定特征（每时期必须延续）：</b>' + esc(c.fixed_features) + '</div>' : '')
+      + (c.periods || []).map(function (p, i) {
+        return '<div class="card" style="margin-top:10px;background:#faf7ee"><h4 style="font-size:14px">' + esc(p.period_name) + ' ' + modeChip(p) + '</h4>'
+          + '<div class="kv"><b>外貌</b>' + esc(p.appearance) + '</div>'
+          + '<div class="kv"><b>服饰</b>' + esc(p.costume) + '</div>'
+          + (p.variation_reason ? '<div class="kv"><b>变化依据</b>' + esc(p.variation_reason) + (p.reference_image ? ' <span class="chip">参考 ' + esc(p.reference_image) + '</span>' : '') + '</div>' : '')
+          + promptBox('period:' + c.id + ':' + i, '时期提示词（' + (p.is_base ? '首图' : '以参考图生图，脚本已注入一致性前缀') + '）')
+          + '</div>';
+      }).join('');
+    return '<div class="card">' + head + '</div>';
+  }).join('');
+
+  /* ---- 角色时期变化 ---- */
+  var periodTables = (D.characters || []).map(function (c) {
+    var rows = (c.periods || []).map(function (p, i) {
+      var ref = A['period:' + c.id + ':' + i] || {};
+      var mode = p.is_base ? '首图（基准）' : (p.generation_mode === 'fresh_generation' ? '原著幻化 · 重开' : '图生图');
+      return '<tr><td>' + esc(p.period_name) + (p.is_base ? ' ' + chip('基准', 'green') : '') + '</td>'
+        + '<td>' + esc(mode) + '</td>'
+        + '<td>' + esc(p.appearance) + '</td>'
+        + '<td>' + esc(p.costume) + '</td>'
+        + '<td>' + esc(p.variation_reason || '—') + '</td>'
+        + '<td class="mono">' + esc(ref.reference || p.reference_image || '—') + '</td></tr>';
+    }).join('');
+    return '<h4 style="margin:14px 0 6px">' + esc(c.name) + '（' + esc(c.identity || '') + '）</h4>'
+      + '<table class="periods"><tr><th>时期</th><th>生成方式</th><th>外貌</th><th>服饰</th><th>变化依据</th><th>参考图</th></tr>' + rows + '</table>';
+  }).join('');
+
+  /* ---- 场景 / 道具 ---- */
+  var scenes = (D.scenes || []).map(function (s) {
+    return '<div class="card"><h4>' + esc(s.name) + '</h4>'
+      + '<div class="kv"><b>时代</b>' + esc(s.era) + '<b style="margin-left:10px">地点</b>' + esc(s.location) + '</div>'
+      + '<div class="kv"><b>氛围</b>' + esc(s.atmosphere) + '</div>'
+      + '<div class="kv"><b>光照</b>' + esc(s.lighting) + '</div>'
+      + '<div class="kv"><b>关键元素</b>' + (s.key_elements || []).map(function (x) { return chip(x); }).join(' ') + '</div>'
+      + promptBox('scene:' + s.id, '场景提示词（风格锚点已注入）') + '</div>';
+  }).join('');
+
+  var props = (D.props || []).map(function (p) {
+    var src = p.source_ref && (p.source_ref.chapter || p.source_ref.quote)
+      ? '<div class="kv"><b>出处</b>' + esc(p.source_ref.chapter ? '第' + p.source_ref.chapter + '章 ' : '') + esc(p.source_ref.quote || '') + '</div>' : '';
+    return '<div class="card"><h4>' + esc(p.name) + '</h4>'
+      + '<div class="kv"><b>归属</b>' + esc(p.owner) + '</div>'
+      + '<div class="kv"><b>材质</b>' + esc(p.material) + '<b style="margin-left:10px">用途</b>' + esc(p.usage) + '</div>'
+      + src
+      + promptBox('prop:' + p.id, '道具提示词（风格锚点已注入）') + '</div>';
+  }).join('');
+
+  /* ---- 提示词库 ---- */
+  function libItem(title, key) {
+    var ref = A[key];
+    if (!ref) return '';
+    return '<div class="lib-item"><div class="t"><span>' + esc(title) + '</span>' + copyBtn(ref.full) + '</div><pre style="white-space:pre-wrap;word-break:break-all;font-size:12px;color:#544c3f;font-family:Consolas,Menlo,monospace">' + esc(ref.full) + '</pre></div>';
+  }
+  var lib = '<div class="lib-group"><h4>通用段（注入每条提示词）</h4>'
+    + '<div class="lib-item"><div class="t"><span>全局风格锚点 + 质量词</span>' + copyBtn((P.style_anchor || '') + '；' + (P.quality_common || '')) + '</div><pre style="white-space:pre-wrap;font-size:12px;color:#544c3f;font-family:Consolas,Menlo,monospace">' + esc((P.style_anchor || '') + '；' + (P.quality_common || '')) + '</pre></div>'
+    + '<div class="lib-item"><div class="t"><span>统一负面提示词</span>' + copyBtn(P.negative_common || '') + '</div><pre style="white-space:pre-wrap;font-size:12px;color:#544c3f;font-family:Consolas,Menlo,monospace">' + esc(P.negative_common || '') + '</pre></div>'
+    + '</div>';
+  lib += '<div class="lib-group"><h4>角色 · 按时期</h4>' + (D.characters || []).map(function (c) {
+    return (c.periods || []).map(function (p, i) { return libItem(c.name + ' · ' + p.period_name, 'period:' + c.id + ':' + i); }).join('');
+  }).join('') + '</div>';
+  lib += '<div class="lib-group"><h4>势力</h4>' + (D.factions || []).map(function (f) { return libItem(f.name, 'faction:' + f.id); }).join('') + '</div>';
+  lib += '<div class="lib-group"><h4>场景</h4>' + (D.scenes || []).map(function (s) { return libItem(s.name, 'scene:' + s.id); }).join('') + '</div>';
+  lib += '<div class="lib-group"><h4>道具</h4>' + (D.props || []).map(function (p) { return libItem(p.name, 'prop:' + p.id); }).join('') + '</div>';
+
+  /* ---- 组装页面 ---- */
+  var drama = (D.meta && D.meta.drama) || '漫剧资产包';
+  var nav = [
+    ['overview', '进度总览', null],
+    ['config', '项目配置', null],
+    ['world', '世界观', null],
+    ['factions', '势力与阶级', C.factions],
+    ['characters', '角色资产', C.characters],
+    ['periods', '角色时期变化', C.periods],
+    ['scenes', '场景资产', C.scenes],
+    ['props', '道具资产', C.props],
+    ['library', '提示词库', null],
+  ];
+  document.getElementById('nav').innerHTML = nav.map(function (n) {
+    return '<a href="#' + n[0] + '" data-sec="' + n[0] + '"><span>' + n[1] + '</span>' + (n[2] != null ? '<span class="n">' + n[2] + '</span>' : '') + '</a>';
+  }).join('');
+
+  document.getElementById('panels').innerHTML =
+    '<header class="top"><h2>' + esc(drama) + ' · AI 漫剧资产报告</h2><div class="meta">生成时间 ' + esc(R.generatedAt) + ' · 数据来自 ' + esc(R.sourceFile || 'assets json') + ' · 所有提示词均为「风格锚点 + prompt_body + 质量词 + 统一负面词」脚本拼装</div></header>'
+    + sec('overview', '进度总览', 'PROGRESS', overview)
+    + sec('config', '项目配置', 'PROJECT', config)
+    + sec('world', '世界观', 'WORLD', world)
+    + sec('factions', '势力与阶级', 'FACTIONS', '<div class="cards">' + factions + '</div>', C.factions)
+    + sec('characters', '角色资产', 'CHARACTERS', '<div class="cards" style="grid-template-columns:1fr">' + characters + '</div>', C.characters)
+    + sec('periods', '角色时期变化', 'PERIODS', periodTables, C.periods)
+    + sec('scenes', '场景资产', 'SCENES', '<div class="cards">' + scenes + '</div>', C.scenes)
+    + sec('props', '道具资产', 'PROPS', '<div class="cards">' + props + '</div>', C.props)
+    + sec('library', '提示词库', 'PROMPT LIBRARY', lib);
+
+  /* ---- 复制与高亮 ---- */
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-copy]');
+    if (!btn) return;
+    var text = copyTexts[+btn.getAttribute('data-copy')] || '';
+    function done() { btn.textContent = '已复制'; btn.classList.add('ok'); setTimeout(function () { btn.textContent = '复制'; btn.classList.remove('ok'); }, 1400); }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, function () { fallback(text); done(); });
+    } else { fallback(text); done(); }
+  });
+  function fallback(text) {
+    var ta = document.createElement('textarea');
+    ta.value = text; document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); } catch (e) {}
+    document.body.removeChild(ta);
+  }
+
+  var links = [].slice.call(document.querySelectorAll('#nav a'));
+  window.addEventListener('hashchange', mark);
+  function mark() {
+    var h = (location.hash || '#overview').slice(1);
+    links.forEach(function (a) { a.classList.toggle('active', a.getAttribute('data-sec') === h); });
+    var el = document.getElementById(h);
+    if (el) el.scrollIntoView();
+  }
+  mark();
+
+  document.getElementById('export-btn').addEventListener('click', function () {
+    var blob = new Blob([JSON.stringify(D, null, 2)], { type: 'application/json' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = ((D.meta && D.meta.drama) || 'assets') + '-assets.json';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
+})();
+</script>
+</body>
+</html>

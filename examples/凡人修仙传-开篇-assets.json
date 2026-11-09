@@ -1,0 +1,168 @@
+{
+  "meta": {
+    "drama": "凡人修仙传",
+    "source": "开篇：七玄门 → 黄枫谷",
+    "created": "2026-11-09",
+    "generator": "novel-asset-pack"
+  },
+  "project": {
+    "aspect_ratio": "16:9",
+    "style_anchor": "3D 写实国风仙侠，UE5 引擎质感，PBR 材质，电影级光影，低饱和厚重色调，人物比例写实，服饰符合门派阶级设定，画面稳定统一，禁止 Q 版、卡通渲染、过度美颜",
+    "faithful": true,
+    "quality_common": "8K 超清，超高细节，稳定构图，无畸形肢体",
+    "negative_common": "畸形、多指、模糊、水印、画风突变、比例失调、Q 版、卡通渲染、过度美颜"
+  },
+  "world": {
+    "background": "凡人修仙世界：凡人王朝与江湖门派之下，修仙宗门超然世外，凡人不知仙凡之隔",
+    "power_system": "江湖武功与修仙炼气并行；修仙境界炼气、筑基、结丹层层递进，寿命随境界延长",
+    "social_structure": "凡人村庄—城镇—王朝层层隶属；江湖门派管武林恩怨，修仙宗门不问世事，散修游走底层",
+    "architecture": "凡人建筑青石台基、木构飞檐；修仙宗门殿宇依山而建，石阶云雾、禁制光幕隐现",
+    "costume_rules": "江湖门派按阶级配服：杂役短打、弟子粗麻、首领绸缎；修仙门派道袍制式统一，阶级看配饰与衣料",
+    "color_system": "低饱和青灰为基底，晨雾冷色为环境主调；修仙门派以暖金、米黄区分凡俗，暖色只做点缀不抢主体"
+  },
+  "factions": [
+    {
+      "id": "faction_qixuanmen",
+      "name": "七玄门",
+      "positioning": "越国江湖门派，凡俗武林势力",
+      "class_system": ["杂役", "记名弟子", "外门弟子", "内门弟子", "堂主", "门主"],
+      "costume_rule": "杂役穿青黑粗布短打；记名与外门弟子穿青灰粗麻袍，腰系木牌；内门以上改青色细布；堂主以上玄色绸缎加玄铁配饰",
+      "main_color": "青灰",
+      "pattern": "玄字纹",
+      "prompt_body": "平视全景；江湖门派山门；青石门楼立在崖壁要道，铁索吊桥连栈道；门楼雕纹、铁索与栈道木板细节清晰；晨雾侧光，冷色调，远景山影层叠；"
+    },
+    {
+      "id": "faction_huangfenggu",
+      "name": "黄枫谷",
+      "positioning": "越国修仙宗门，仙凡之隔的另一层世界",
+      "class_system": ["弟子", "长老", "掌门"],
+      "costume_rule": "弟子米黄道袍束同色腰带；长老加披帛与玉饰；掌门袍绣金线枫叶，持门派法器",
+      "main_color": "米黄",
+      "pattern": "枫叶纹",
+      "prompt_body": "平视全景；修仙宗门庭院；黄枫夹道石桥连殿，殿宇错落；枫叶与殿宇彩绘清晰；午后柔光，暖色调，轻雾浮空；"
+    }
+  ],
+  "characters": [
+    {
+      "id": "char_hanli",
+      "name": "韩立",
+      "gender": "男",
+      "age": "16 岁入七玄门",
+      "identity": "贫家少年，先后为七玄门杂役弟子、黄枫谷弟子",
+      "class": "记名弟子 → 弟子",
+      "faction_id": "faction_qixuanmen",
+      "personality": "谨慎坚韧，藏拙内敛，遇险先求自保",
+      "identity_anchor": "相貌普通，肤色微黑，鼻梁挺直，中等身形偏瘦",
+      "fixed_features": "",
+      "periods": [
+        {
+          "period_name": "七玄门杂役弟子期",
+          "is_base": true,
+          "generation_mode": "fresh_generation",
+          "reference_image": null,
+          "variation_reason": null,
+          "source_described": null,
+          "appearance": "少年，肤色微黑，身形偏瘦，眼神沉静不像同龄人",
+          "costume": "青灰色粗麻弟子袍，腰系木牌，布鞋绑腿",
+          "prompt_body": "中景平视；少年男修，相貌普通，肤色微黑，鼻梁挺直，中等身形偏瘦，穿青灰色粗麻弟子袍，腰系木牌；山门石阶前，云雾缭绕，古松与青石门楼可见；粗麻衣料褶皱与石阶苔痕清晰；侧逆光，冷色晨雾，轮廓光轻微；"
+        },
+        {
+          "period_name": "黄枫谷弟子期",
+          "is_base": false,
+          "generation_mode": "reference_img2img",
+          "reference_image": "han_li/period-01.png",
+          "variation_reason": "离开七玄门加入黄枫谷：服饰换米黄道袍与玉牌，年龄由少年长为青年，气质转沉稳；脸型与五官以基准期参考图为准只做微调",
+          "source_described": null,
+          "appearance": "青年，相貌不变，肤色仍微黑，身形清瘦，气质沉稳",
+          "costume": "米黄色道袍，同色腰带，腰系玉牌",
+          "prompt_body": "中景平视；青年男修，相貌普通，肤色微黑，鼻梁挺直，中等身形清瘦，穿米黄色道袍，腰系玉牌；黄枫谷庭院，黄枫夹道，石桥殿宇隐现；道袍布纹与玉牌温润光泽清晰；午后柔光，暖色调，轻雾浮空；"
+        }
+      ]
+    },
+    {
+      "id": "char_modafu",
+      "name": "墨大夫",
+      "gender": "男",
+      "age": "六十上下",
+      "identity": "七玄门神手谷谷主，韩立的师父",
+      "class": "谷主",
+      "faction_id": "faction_qixuanmen",
+      "personality": "表面慈和内里阴鸷，惜命多疑，对功法执着",
+      "identity_anchor": "面色蜡黄，蓄短须，眼窝略深，身形中等微驼",
+      "fixed_features": "",
+      "periods": [
+        {
+          "period_name": "神手谷谷主期",
+          "is_base": true,
+          "generation_mode": "fresh_generation",
+          "reference_image": null,
+          "variation_reason": null,
+          "source_described": null,
+          "appearance": "老者，面色蜡黄，蓄着短须，眼神慈和中偶露精光",
+          "costume": "深灰色绸缎长袍，外罩褐色药袍，手持木杖",
+          "prompt_body": "中景平视；老者男修，面色蜡黄，蓄短须，眼窝略深，身形中等微驼，穿深灰色绸缎长袍，外罩褐色药袍，手持木杖；神手谷药园茅屋前，竹篱药田环绕；绸缎光泽与药袍褶皱清晰，木杖纹理可见；侧光，暮色暖调，人物半明半暗；"
+        }
+      ]
+    }
+  ],
+  "scenes": [
+    {
+      "id": "scene_caixiashan",
+      "name": "彩霞山七玄门山门",
+      "era": "韩立入门时期",
+      "location": "越国彩霞山主峰要道",
+      "atmosphere": "肃穆清冷，江湖气重",
+      "lighting": "晨雾侧逆光，山影层叠",
+      "key_elements": ["百丈崖壁", "青石门楼", "铁索吊桥", "崖壁栈道"],
+      "image": null,
+      "prompt_body": "平视全景；高山江湖门派山门；百丈崖壁下青石门楼，铁索吊桥连栈道；崖壁纹理、门楼雕纹与铁索细节清晰；侧逆光，晨雾体积光，冷色调远景层叠；"
+    },
+    {
+      "id": "scene_shenshougu",
+      "name": "神手谷药园",
+      "era": "韩立杂役弟子时期",
+      "location": "彩霞山神手谷内",
+      "atmosphere": "幽静，药香，与世隔绝",
+      "lighting": "顶光穿透谷口，暖色午后",
+      "key_elements": ["竹篱药田", "木架茅屋", "石臼药碾"],
+      "image": null,
+      "prompt_body": "平视全景；山谷药园；竹篱围出药田垄沟，木架茅屋，石臼药碾散置；药苗行列与竹篱编织纹理清晰；顶光穿透谷口，暖色午后，浮尘微光；"
+    }
+  ],
+  "props": [
+    {
+      "id": "prop_mupai",
+      "name": "弟子木牌",
+      "owner": "七玄门弟子",
+      "material": "粗木，系麻绳",
+      "usage": "身份标识，入门凭证",
+      "source_ref": { "chapter": null, "quote": "腰间挂着的门派木牌" },
+      "image": null,
+      "prompt_body": "特写俯视；粗木腰牌，表面刻有门派编号；散落青石桌面，麻绳系带垂落；木纹与刻痕清晰，麻绳纤维可见；柔和顶光，浅景深；"
+    },
+    {
+      "id": "prop_yaochu",
+      "name": "药锄",
+      "owner": "神手谷药园",
+      "material": "铁头木柄",
+      "usage": "翻土采药，韩立日常劳作用具",
+      "source_ref": { "chapter": null, "quote": "药园里翻土的旧锄头" },
+      "image": null,
+      "prompt_body": "特写平视；铁头木柄药锄，铁头有使用磨痕；斜倚竹篱，旁搁药篓；铁锈斑驳与木柄包浆清晰；侧光，午后暖调，浅景深；"
+    }
+  ],
+  "prompt_library": {
+    "note": "提示词库由 render 自动按「风格锚点 + prompt_body + 质量词 + 统一负面词」拼装，此字段仅供人读备注"
+  },
+  "pipeline": {
+    "steps": [
+      { "id": "config", "label": "项目配置与风格锚点", "status": "done", "note": "默认 16:9 · 忠实原著 · 国风仙侠锚点已确认" },
+      { "id": "world", "label": "世界观与势力", "status": "done", "note": "2 个势力，阶级与服饰区分完成" },
+      { "id": "characters", "label": "角色资产与时期", "status": "done", "note": "2 名角色 · 3 个时期，衍生期走图生图" },
+      { "id": "scenes", "label": "场景资产", "status": "done", "note": "2 个场景，关键元素可画可核对" },
+      { "id": "props", "label": "道具资产", "status": "done", "note": "2 件叙事道具" },
+      { "id": "validate", "label": "质量门校验", "status": "done", "note": "全部通过" },
+      { "id": "report", "label": "HTML 报告输出", "status": "done", "note": "凡人修仙传-assets-report.html" }
+    ]
+  }
+}
