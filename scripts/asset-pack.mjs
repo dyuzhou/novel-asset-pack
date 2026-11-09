@@ -7,7 +7,7 @@
  *   - 零依赖，Node >= 18，只用标准库
  *   - 事实搬运交给 seed，理解与归纳交给模型，结构校验交给质量门（纯代码）
  *   - 风格锚点 / 质量词 / 负面词 / 图生图前缀全部由本脚本注入，模型只写 prompt_body 五段
- *   - 本 skill 不出图；报告里图片是下游放好的素材，render 只负责捡起来
+ *   - 生成服务不由脚本直接调用；报告读取项目目录中的图像与音频产物
  *
  * CLI:
  *   node asset-pack.mjs init [剧名]
@@ -28,6 +28,20 @@ const MODE_FRESH = 'fresh_generation'; // 首图 / 原著明确描写的幻化�
 const MODE_I2I = 'reference_img2img'; // 以参考图生图（衍生时期默认）
 
 const STATUSES = new Set(['pending', 'in_progress', 'done']);
+const PIPELINE_STEPS = [
+  ['config', '项目配置与风格锚点'],
+  ['fulltext', '阅读全文：世界观与势力统计'],
+  ['inventory', '资产整理：角色、种族、场景与时期'],
+  ['art_plan', '美工规划：势力阶级与种族设计'],
+  ['art_review', '美工图检验：世界观与时代一致性'],
+  ['asset_images', '资产图生成：角色、场景与道具'],
+  ['asset_review', '资产图检验：一致性与质量'],
+  ['audio', '音频生成'],
+  ['script_storyboard', '项目剧本与分镜生成'],
+  ['shot_images', '批量镜头图：复用资产并控制成本'],
+  ['validate', '最终质量门校验'],
+  ['report', 'HTML 报告输出'],
+];
 
 const CAMERA_WORDS = [
   '中景', '近景', '远景', '全景', '特写', '平视', '俯视', '仰视',
@@ -84,7 +98,9 @@ function today() {
 /** 图片路径 → 相对 json 的 URL；文件存在才返回，否则 null（报告里渲染占位框）。 */
 function resolveImage(jsonDir, rel) {
   if (!nonEmpty(rel)) return null;
-  const parts = String(rel).split(/[\\/]/).filter(Boolean);
+  const parts = String(rel).split(/[\\/]/).filter((part) => part && part !== '.');
+  if (parts[0] === 'images') parts.shift();
+  if (parts.includes('..')) return null;
   const abs = path.join(jsonDir, 'images', ...parts);
   if (!fs.existsSync(abs)) return null;
   return 'images/' + parts.map(encodeURIComponent).join('/');
@@ -173,8 +189,53 @@ export function gateList(doc) {
 
   const steps = Array.isArray(d.pipeline?.steps) ? d.pipeline.steps : [];
   const badStep = steps.find((s) => !isObj(s) || !nonEmpty(s.id) || !nonEmpty(s.label) || !STATUSES.has(s.status));
-  add('G2', 'pipeline 步骤有效（status ∈ pending/in_progress/done）', steps.length > 0 && !badStep,
-    steps.length === 0 ? 'pipeline.steps 为空' : badStep ? `非法步骤：${badStep.id ?? '(无 id)'}` : '');
+  let flowError = '';
+  if (steps.length !== PIPELINE_STEPS.length || steps.some((s, i) => s?.id !== PIPELINE_STEPS[i]?.[0] || s?.label !== PIPELINE_STEPS[i]?.[1])) {
+    flowError = '步骤必须完整且按 SKILL.md 的 12 步固定顺序';
+  } else {
+    const firstOpen = steps.findIndex((s) => s.status !== 'done');
+    const doneAfterOpen = firstOpen >= 0 && steps.slice(firstOpen + 1).some((s) => s.status === 'done');
+    const active = steps.map((s, i) => s.status === 'in_progress' ? i : -1).filter((i) => i >= 0);
+    if (doneAfterOpen) flowError = '前置步骤未完成，不能将后续步骤标记为完成';
+    else if (active.length > 1 || (active.length === 1 && active[0] !== firstOpen)) flowError = '只能将当前第一个未完成步骤标记为进行中';
+  }
+  add('G2', 'pipeline 固定 12 步且不可跳关', steps.length > 0 && !badStep && !flowError,
+    steps.length === 0 ? 'pipeline.steps 为空' : badStep ? `非法步骤：${badStep.id ?? '(无 id)'}` : flowError);
+
+  const completed = (id) => steps.find((s) => s.id === id)?.status === 'done';
+  const artPlans = Array.isArray(d.art_plans) ? d.art_plans : [];
+  const imageReviews = Array.isArray(d.image_reviews) ? d.image_reviews : [];
+  const audioAssets = Array.isArray(d.audio_assets) ? d.audio_assets : [];
+  const production = d.production ?? {};
+  const shots = Array.isArray(production.shots) ? production.shots : [];
+  const generatedImages = [
+    ...(Array.isArray(d.races) ? d.races : []),
+    ...(Array.isArray(d.factions) ? d.factions : []),
+    ...(Array.isArray(d.characters) ? d.characters : []).flatMap((c) => c.periods ?? []),
+    ...(Array.isArray(d.scenes) ? d.scenes : []),
+    ...(Array.isArray(d.props) ? d.props : []),
+  ];
+  const missingImages = generatedImages.filter((it) => !nonEmpty(it?.image));
+  const imagePaths = generatedImages.map((it) => it.image).filter(nonEmpty);
+  const imageReviewPaths = new Set(imageReviews.filter((r) => r.status === 'approved').map((r) => r.image));
+  const checks = [
+    ['fulltext', 'source_analysis.scope + chapters_read + statistics',
+      nonEmpty(d.source_analysis?.scope) && Number(d.source_analysis?.chapters_read) > 0 && isObj(d.source_analysis?.statistics) && Object.keys(d.source_analysis.statistics).length > 0],
+    ['art_plan', '至少一份 art_plans 设计方案', artPlans.length > 0],
+    ['art_review', '所有美工方案均通过世界观/时代/语言检查', artPlans.length > 0 && artPlans.every((p) => p.review?.status === 'approved' && p.review?.worldview === true && p.review?.anachronism === true && p.review?.language === true)],
+    ['asset_images', '所有种族/势力/角色时期/场景/道具均有 image 路径', generatedImages.length > 0 && missingImages.length === 0],
+    ['asset_review', '所有资产图均有 approved image_reviews 记录', imagePaths.length > 0 && imagePaths.every((image) => imageReviewPaths.has(image))],
+    ['audio', 'audio_assets 中每项均有 file', audioAssets.length > 0 && audioAssets.every((it) => nonEmpty(it.file))],
+    ['script_storyboard', 'production.scripts 与 production.shots 均非空', (production.scripts ?? []).length > 0 && shots.length > 0],
+    ['shot_images', '每个 production.shots 项均有 image', shots.length > 0 && shots.every((it) => nonEmpty(it.image))],
+  ];
+  for (const [stepId, requirement, ok] of checks) {
+    if (completed(stepId)) add('G3', `步骤「${stepId}」交付物完整`, ok, ok ? '' : `缺少：${requirement}`);
+  }
+  if (completed('report')) {
+    const reportStep = steps.find((s) => s.id === 'report');
+    add('G3', 'HTML 报告完成步骤需记录输出路径', nonEmpty(reportStep?.note), '请在 note 填写报告文件路径');
+  }
 
   /* ---- F 组：势力 ---- */
   const factions = Array.isArray(d.factions) ? d.factions : [];
@@ -292,15 +353,7 @@ function defaultProject() {
 
 function defaultPipeline() {
   return {
-    steps: [
-      { id: 'config', label: '项目配置与风格锚点', status: 'pending', note: '' },
-      { id: 'world', label: '世界观与势力', status: 'pending', note: '' },
-      { id: 'characters', label: '角色资产与时期', status: 'pending', note: '' },
-      { id: 'scenes', label: '场景资产', status: 'pending', note: '' },
-      { id: 'props', label: '道具资产', status: 'pending', note: '' },
-      { id: 'validate', label: '质量门校验', status: 'pending', note: '' },
-      { id: 'report', label: 'HTML 报告输出', status: 'pending', note: '' },
-    ],
+    steps: PIPELINE_STEPS.map(([id, label]) => ({ id, label, status: 'pending', note: '' })),
   };
 }
 
@@ -313,10 +366,15 @@ export function initSkeleton(drama = '未命名项目', source = '') {
       background: '', power_system: '', social_structure: '',
       architecture: '', costume_rules: '', color_system: '',
     },
+    races: [],
     factions: [],
     characters: [],
     scenes: [],
     props: [],
+    source_analysis: { scope: '', chapters_read: 0, total_chapters: null, statistics: {}, notes: '' },
+    art_plans: [],
+    audio_assets: [],
+    production: { scripts: [], shots: [] },
     pipeline: defaultPipeline(),
   };
 }
@@ -379,12 +437,18 @@ export function seedFromOutline(outline, drama = '未命名项目') {
 
 function countsOf(doc) {
   const chars = Array.isArray(doc.characters) ? doc.characters : [];
+  const production = doc.production ?? {};
   return {
     characters: chars.length,
     periods: chars.reduce((n, c) => n + (Array.isArray(c.periods) ? c.periods.length : 0), 0),
     factions: (Array.isArray(doc.factions) ? doc.factions : []).length,
     scenes: (Array.isArray(doc.scenes) ? doc.scenes : []).length,
     props: (Array.isArray(doc.props) ? doc.props : []).length,
+    races: (Array.isArray(doc.races) ? doc.races : []).length,
+    artPlans: (Array.isArray(doc.art_plans) ? doc.art_plans : []).length,
+    audio: (Array.isArray(doc.audio_assets) ? doc.audio_assets : []).length,
+    scripts: (Array.isArray(production.scripts) ? production.scripts : []).length,
+    shots: (Array.isArray(production.shots) ? production.shots : []).length,
     stepsDone: (doc.pipeline?.steps ?? []).filter((s) => s.status === 'done').length,
     stepsTotal: (doc.pipeline?.steps ?? []).length,
   };
@@ -424,10 +488,33 @@ function buildPayload(doc, jsonDir) {
     }
   }
 
+  for (const it of Array.isArray(doc.art_plans) ? doc.art_plans : []) {
+    fullById[`art:${it.id}`] = {
+      full: assemblePrompt(proj.style_anchor, it.prompt_body, proj.quality_common, proj.negative_common),
+      img: resolveImage(jsonDir, it.image),
+      reference: null,
+    };
+  }
+  for (const it of Array.isArray(doc.races) ? doc.races : []) {
+    fullById[`race:${it.id}`] = {
+      full: assemblePrompt(proj.style_anchor, it.prompt_body, proj.quality_common, proj.negative_common),
+      img: resolveImage(jsonDir, it.image),
+      reference: null,
+    };
+  }
+  for (const it of Array.isArray(doc.production?.shots) ? doc.production.shots : []) {
+    fullById[`shot:${it.id}`] = {
+      full: assemblePrompt(proj.style_anchor, it.prompt_body, proj.quality_common, proj.negative_common),
+      img: resolveImage(jsonDir, it.image),
+      reference: null,
+    };
+  }
+
   return {
     generatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
     doc,
     counts: countsOf(doc),
+    quality: gateList(doc),
     assembled: { fullById },
   };
 }
@@ -547,14 +634,23 @@ function pageScript() {
     return '<li>' + chip(txt, cls) + '<span>' + esc(s.label) + '</span>' + (s.note ? '<span class="note">' + esc(s.note) + '</span>' : '') + '</li>';
   }).join('');
   var pct = C.stepsTotal ? Math.round(C.stepsDone / C.stepsTotal * 100) : 0;
+  var failed = (R.quality || []).filter(function (g) { return !g.ok; });
+  var qualityHtml = failed.length
+    ? '<div class="warn-box"><b>当前质量门未通过：' + failed.length + ' 项</b><ul>' + failed.slice(0, 6).map(function (g) { return '<li>' + esc(g.id + ' ' + g.label + (g.detail ? '：' + g.detail : '')) + '</li>'; }).join('') + (failed.length > 6 ? '<li>其余 ' + (failed.length - 6) + ' 项请运行 checkup 查看</li>' : '') + '</ul></div>'
+    : '<div class="anchor-box">当前质量门全部通过</div>';
   var overview = '<div class="progress"><b>总进度</b>（' + C.stepsDone + '/' + C.stepsTotal + ' 步）'
     + '<div class="bar"><i style="width:' + pct + '%"></i></div>'
-    + '<ul class="steps">' + stepsHtml + '</ul></div>'
+    + '<ul class="steps">' + stepsHtml + '</ul></div>' + qualityHtml
     + '<div class="counts">'
     + '<div class="card"><div class="num">' + C.characters + '</div><div class="lbl">角色 · ' + C.periods + ' 个时期</div></div>'
     + '<div class="card"><div class="num">' + C.factions + '</div><div class="lbl">势力</div></div>'
+    + '<div class="card"><div class="num">' + C.races + '</div><div class="lbl">种族</div></div>'
     + '<div class="card"><div class="num">' + C.scenes + '</div><div class="lbl">场景</div></div>'
     + '<div class="card"><div class="num">' + C.props + '</div><div class="lbl">道具</div></div>'
+    + '<div class="card"><div class="num">' + C.artPlans + '</div><div class="lbl">美工设计</div></div>'
+    + '<div class="card"><div class="num">' + C.audio + '</div><div class="lbl">音频</div></div>'
+    + '<div class="card"><div class="num">' + C.scripts + '</div><div class="lbl">剧本</div></div>'
+    + '<div class="card"><div class="num">' + C.shots + '</div><div class="lbl">镜头</div></div>'
     + '</div>';
 
   /* ---- 项目配置 ---- */
@@ -585,6 +681,12 @@ function pageScript() {
       + '<div class="kv"><b>服饰规则</b>' + esc(f.costume_rule) + '</div>'
       + '<div class="kv"><b>纹样</b>' + esc(f.pattern) + '</div>'
       + promptBox('faction:' + f.id, '势力提示词（风格锚点已注入）') + '</div>';
+  }).join('');
+
+  var races = (D.races || []).map(function (it) {
+    return '<div class="card"><h4>' + esc(it.name || it.id) + '</h4>'
+      + '<div class="row"><b>外观与特征</b>' + esc(it.description || '') + '</div>'
+      + promptBox('race:' + it.id, '种族设定提示词') + '</div>';
   }).join('');
 
   /* ---- 角色资产 ---- */
@@ -646,6 +748,47 @@ function pageScript() {
       + promptBox('prop:' + p.id, '道具提示词（风格锚点已注入）') + '</div>';
   }).join('');
 
+  /* ---- 美工规划与设计图 ---- */
+  var artPlans = (D.art_plans || []).map(function (it) {
+    var review = it.review || {};
+    var reviewLabel = review.status === 'approved' ? chip('检验通过', 'green') : chip(review.status || '待检验', 'amber');
+    return '<div class="card"><h4>' + esc(it.title || it.name || it.id) + ' ' + reviewLabel + '</h4>'
+      + '<div class="kv"><b>类别 / 对象</b>' + esc(it.category || '') + ' · ' + esc(it.target || '') + '</div>'
+      + (it.tier ? '<div class="kv"><b>阶级 / 时期</b>' + esc(it.tier) + '</div>' : '')
+      + '<div class="row"><b>设计说明</b>' + esc(it.description || '') + '</div>'
+      + (review.notes ? '<div class="row"><b>检验记录</b>' + esc(review.notes) + '</div>' : '')
+      + promptBox('art:' + it.id, '美工设计提示词') + '</div>';
+  }).join('');
+  var imageReviews = (D.image_reviews || []).map(function (it) {
+    var status = it.status === 'approved' ? chip('检验通过', 'green') : chip(it.status || '待检验', 'amber');
+    return '<div class="lib-item"><div class="t"><span>' + esc(it.asset_id || it.image || '未关联资产') + '</span>' + status + '</div>'
+      + '<div class="row"><b>图片</b>' + esc(it.image || '') + '</div>'
+      + '<div class="row"><b>检验记录</b>' + esc(it.notes || '') + '</div></div>';
+  }).join('');
+
+  /* ---- 音频 ---- */
+  var audioAssets = (D.audio_assets || []).map(function (it) {
+    var player = it.file ? '<audio controls preload="none" src="' + esc(it.file) + '"></audio>' : '<div class="img-ph">音频待生成</div>';
+    return '<div class="card"><h4>' + esc(it.title || it.name || it.id) + '</h4>'
+      + '<div class="kv"><b>类型</b>' + esc(it.type || '') + '</div>'
+      + '<div class="row"><b>说明</b>' + esc(it.description || '') + '</div>' + player + '</div>';
+  }).join('');
+
+  /* ---- 剧本 / 分镜 / 镜头图 ---- */
+  var production = D.production || {};
+  var scripts = (production.scripts || []).map(function (it) {
+    return '<div class="card"><h4>' + esc(it.title || it.episode || it.id) + '</h4>'
+      + '<div class="row">' + esc(it.summary || '') + '</div>'
+      + (it.file ? '<div class="row"><b>文件</b><a href="' + esc(it.file) + '">' + esc(it.file) + '</a></div>' : '') + '</div>';
+  }).join('');
+  var shots = (production.shots || []).map(function (it) {
+    return '<div class="card"><h4>' + esc(it.title || it.id) + '</h4>'
+      + '<div class="kv"><b>剧集 / 场景</b>' + esc(it.episode || '') + ' · ' + esc(it.scene || '') + '</div>'
+      + '<div class="row"><b>资产引用</b>' + esc((it.asset_refs || []).join('、')) + '</div>'
+      + '<div class="row"><b>成本控制</b>' + esc(it.reuse_note || '') + '</div>'
+      + promptBox('shot:' + it.id, '镜头图提示词') + '</div>';
+  }).join('');
+
   /* ---- 提示词库 ---- */
   function libItem(title, key) {
     var ref = A[key];
@@ -662,6 +805,9 @@ function pageScript() {
   lib += '<div class="lib-group"><h4>势力</h4>' + (D.factions || []).map(function (f) { return libItem(f.name, 'faction:' + f.id); }).join('') + '</div>';
   lib += '<div class="lib-group"><h4>场景</h4>' + (D.scenes || []).map(function (s) { return libItem(s.name, 'scene:' + s.id); }).join('') + '</div>';
   lib += '<div class="lib-group"><h4>道具</h4>' + (D.props || []).map(function (p) { return libItem(p.name, 'prop:' + p.id); }).join('') + '</div>';
+  lib += '<div class="lib-group"><h4>种族</h4>' + (D.races || []).map(function (it) { return libItem(it.name, 'race:' + it.id); }).join('') + '</div>';
+  lib += '<div class="lib-group"><h4>美工设计</h4>' + (D.art_plans || []).map(function (it) { return libItem(it.title || it.name || it.id, 'art:' + it.id); }).join('') + '</div>';
+  lib += '<div class="lib-group"><h4>镜头图</h4>' + ((D.production && D.production.shots) || []).map(function (it) { return libItem(it.title || it.id, 'shot:' + it.id); }).join('') + '</div>';
 
   /* ---- 组装页面 ---- */
   var drama = (D.meta && D.meta.drama) || '漫剧资产包';
@@ -669,11 +815,16 @@ function pageScript() {
     ['overview', '进度总览', null],
     ['config', '项目配置', null],
     ['world', '世界观', null],
+    ['races', '种族设定', C.races],
     ['factions', '势力与阶级', C.factions],
     ['characters', '角色资产', C.characters],
     ['periods', '角色时期变化', C.periods],
     ['scenes', '场景资产', C.scenes],
     ['props', '道具资产', C.props],
+    ['art', '美工规划与检验', C.artPlans],
+    ['audio', '音频资产', C.audio],
+    ['production', '剧本与分镜', C.scripts],
+    ['shots', '镜头图', C.shots],
     ['library', '提示词库', null],
   ];
   document.getElementById('nav').innerHTML = nav.map(function (n) {
@@ -685,11 +836,16 @@ function pageScript() {
     + sec('overview', '进度总览', 'PROGRESS', overview)
     + sec('config', '项目配置', 'PROJECT', config)
     + sec('world', '世界观', 'WORLD', world)
+    + sec('races', '种族设定', 'SPECIES', '<div class="cards">' + races + '</div>', C.races)
     + sec('factions', '势力与阶级', 'FACTIONS', '<div class="cards">' + factions + '</div>', C.factions)
     + sec('characters', '角色资产', 'CHARACTERS', '<div class="cards" style="grid-template-columns:1fr">' + characters + '</div>', C.characters)
     + sec('periods', '角色时期变化', 'PERIODS', periodTables, C.periods)
     + sec('scenes', '场景资产', 'SCENES', '<div class="cards">' + scenes + '</div>', C.scenes)
     + sec('props', '道具资产', 'PROPS', '<div class="cards">' + props + '</div>', C.props)
+    + sec('art', '美工规划与检验', 'ART DIRECTION', '<h4>设计规划与美工图检验</h4><div class="cards">' + artPlans + '</div><h4 style="margin-top:18px">资产图审核记录</h4>' + (imageReviews || '<div class="img-ph">尚无资产图审核记录</div>'), C.artPlans)
+    + sec('audio', '音频资产', 'AUDIO', '<div class="cards">' + audioAssets + '</div>', C.audio)
+    + sec('production', '项目剧本与分镜', 'SCRIPT & STORYBOARD', '<div class="cards">' + scripts + '</div>', C.scripts)
+    + sec('shots', '镜头图', 'SHOT IMAGES', '<div class="cards">' + shots + '</div>', C.shots)
     + sec('library', '提示词库', 'PROMPT LIBRARY', lib);
 
   /* ---- 复制与高亮 ---- */
@@ -914,11 +1070,6 @@ function main(argv) {
     const p = rest.find((x) => !x.startsWith('--'));
     if (!p) throw new Error('用法：render <assets.json> --html|--md');
     const doc = readJson(p);
-    const problems = validateAssets(doc);
-    if (problems.length) {
-      console.error(`✗ 报告数据未过质量门（${problems.length} 处），先跑 validate 修复：\n  ` + problems.slice(0, 8).join('\n  ') + (problems.length > 8 ? `\n  …等 ${problems.length} 处` : ''));
-      process.exit(1);
-    }
     if (rest.includes('--md')) {
       process.stdout.write(renderMarkdown(doc));
     } else {

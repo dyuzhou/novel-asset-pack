@@ -154,15 +154,30 @@
   "prompt_library": {
     "note": "提示词库由 render 自动按「风格锚点 + prompt_body + 质量词 + 统一负面词」拼装，此字段仅供人读备注"
   },
+  "source_analysis": {
+    "scope": "开篇：七玄门 → 黄枫谷",
+    "chapters_read": 0,
+    "total_chapters": null,
+    "statistics": {},
+    "notes": "示例资产数据；请在实际项目中填写原著阅读范围与统计。"
+  },
+  "art_plans": [],
+  "audio_assets": [],
+  "production": { "scripts": [], "shots": [] },
   "pipeline": {
     "steps": [
       { "id": "config", "label": "项目配置与风格锚点", "status": "done", "note": "默认 16:9 · 忠实原著 · 国风仙侠锚点已确认" },
-      { "id": "world", "label": "世界观与势力", "status": "done", "note": "2 个势力，阶级与服饰区分完成" },
-      { "id": "characters", "label": "角色资产与时期", "status": "done", "note": "2 名角色 · 3 个时期，衍生期走图生图" },
-      { "id": "scenes", "label": "场景资产", "status": "done", "note": "2 个场景，关键元素可画可核对" },
-      { "id": "props", "label": "道具资产", "status": "done", "note": "2 件叙事道具" },
-      { "id": "validate", "label": "质量门校验", "status": "done", "note": "全部通过" },
-      { "id": "report", "label": "HTML 报告输出", "status": "done", "note": "凡人修仙传-assets-report.html" }
+      { "id": "fulltext", "label": "阅读全文：世界观与势力统计", "status": "pending", "note": "示例数据不代表已完成全文阅读" },
+      { "id": "inventory", "label": "资产整理：角色、种族、场景与时期", "status": "pending", "note": "" },
+      { "id": "art_plan", "label": "美工规划：势力阶级与种族设计", "status": "pending", "note": "" },
+      { "id": "art_review", "label": "美工图检验：世界观与时代一致性", "status": "pending", "note": "" },
+      { "id": "asset_images", "label": "资产图生成：角色、场景与道具", "status": "pending", "note": "" },
+      { "id": "asset_review", "label": "资产图检验：一致性与质量", "status": "pending", "note": "" },
+      { "id": "audio", "label": "音频生成", "status": "pending", "note": "" },
+      { "id": "script_storyboard", "label": "项目剧本与分镜生成", "status": "pending", "note": "" },
+      { "id": "shot_images", "label": "批量镜头图：复用资产并控制成本", "status": "pending", "note": "" },
+      { "id": "validate", "label": "最终质量门校验", "status": "pending", "note": "" },
+      { "id": "report", "label": "HTML 报告输出", "status": "pending", "note": "" }
     ]
   }
 }

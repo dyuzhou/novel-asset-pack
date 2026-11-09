@@ -10,16 +10,25 @@
   "meta":     { "drama": "剧名", "source": "原著/章节范围", "created": "YYYY-MM-DD" },
   "project":  { "aspect_ratio": "16:9", "style_anchor": "…", "faithful": true,
                 "quality_common": "…", "negative_common": "…" },
+  "source_analysis": { "scope": "开篇若干章", "chapters_read": 12,
+                        "total_chapters": 12, "statistics": { "势力": 4 }, "notes": "…" },
   "world":    { "background": "…", "power_system": "…", "social_structure": "…",
                 "architecture": "…", "costume_rules": "…", "color_system": "…" },
+  "races":      [ …种族… ],
   "factions":   [ …势力… ],
   "characters": [ …角色（含 periods）… ],
   "scenes":     [ …场景… ],
   "props":      [ …道具… ],
+  "art_plans":  [ …美工设计及审核… ],
+  "image_reviews": [ …资产图审核… ],
+  "audio_assets": [ …音频… ],
+  "production": { "scripts": [ …剧本… ], "shots": [ …分镜与镜头图… ] },
   "prompt_library": { "note": "由 render 自动拼装，此字段仅供人读备注" },
-  "pipeline": { "steps": [ { "id": "world", "label": "世界观与势力", "status": "done", "note": "…" } ] }
+  "pipeline": { "steps": [ …按固定顺序的 12 个阶段… ] }
 }
 ```
+
+Agent 为当前作品新增的转换、批处理或校验等工具脚本，统一放在作品目录 `./script/`，不得散落在其他位置。本 skill 自带的 CLI 则仍位于 `{baseDir}/scripts/`。
 
 **职责划分**：风格锚点、质量词、负面词、图生图前缀由脚本在 render 时注入每条提示词；
 你（模型）只写各资产的 `prompt_body` 五段。往 `prompt_body` 里写风格词/质量词/负面词会被 E3 门打回。
@@ -45,6 +54,14 @@
 
 结构 = 画风 + 引擎/渲染 + 色调 + 人物比例 + 稳定性声明 + 负面风格。
 锚点一旦确认就不再改动——它会被注入每一条提示词，中途改锚点等于全部资产重做。
+
+## source_analysis — 原著阅读记录
+
+`scope` 写明实际阅读范围，`chapters_read` 是已完整阅读的章节数，`total_chapters` 可为 `null`（原文没有明确总章数），`statistics` 保存可核对的资产/势力/体系等统计，`notes` 记录来源缺漏或待确认项。只有真实完整阅读后才将 `fulltext` 标为 `done`；该状态要求 scope、正数章节数和非空统计。
+
+## races — 种族
+
+每项使用 `id`、`name`、`description`、`prompt_body` 与 `image`；外观特征必须与世界观和原著一致。种族设定图可归档到 `images/美工设计/`，并列入美工规划与审核记录。
 
 ## world — 世界观（六项全必填，W1）
 
@@ -150,24 +167,48 @@
 
 道具只收叙事道具：有特写、跨章节出现、承载剧情的（信物、法器、身份凭证），一般 3–10 件。
 
+## 美工规划与审核
+
+`art_plans` 每项描述类别、目标对象、阶级/时期、设计说明、`prompt_body`、`image` 与 `review`。设计覆盖势力的阶级服饰差异、种族视觉特征以及主要角色/场景规范。
+
+进入 `art_review: done` 前，每份方案的 `review` 必须有 `status: "approved"`，并将 `worldview`、`anachronism`、`language` 设为 `true`。重点排除与世界观冲突的现代物件/标识/英文字符；除非原著明确允许。审核说明记入 `notes`。
+
+`image_reviews` 按资产图记录 `asset_id`、`image`、`status` 与 `notes`。进入 `asset_review: done` 前，所有已生成资产图都必须有 `status: "approved"` 的记录。
+
+## audio_assets — 音频
+
+每项记录 `id`、`title`、`type`、`description` 和相对项目根目录的 `file`，文件保存在 `audio/`。只有每项均有实际文件路径才可将音频阶段标为完成。
+
+## production — 剧本、分镜与镜头
+
+`scripts` 记录 `id`、`episode`/`title`、`summary`、`file`；`shots` 记录 `id`、`episode`、`scene`、镜头描述、`asset_refs`、`reuse_note`、`prompt_body` 与 `image`。镜头图放在 `images/镜头/<剧集>/`；批量生成需尽量复用资产参考图并记录复用方式，便于控制重复出图成本。
+
 ## pipeline — 进度
 
-`steps` 固定七步：`config / world / characters / scenes / props / validate / report`。
-每步 `status ∈ pending | in_progress | done`，`note` 写一句话（如"3 名角色 · 5 个时期，衍生期走图生图"）。
-**每完成一个 pass 就更新对应步骤**——报告首页的进度总览直接读这里，用户靠它直观掌握进展。
+`steps` 必须完整且按顺序：`config / fulltext / inventory / art_plan / art_review / asset_images / asset_review / audio / script_storyboard / shot_images / validate / report`。每步 `status ∈ pending | in_progress | done`；只能有一个 `in_progress`，且不得将尚未轮到的后续步骤标记为完成。
+
+`done` 必须有对应交付物：全文统计、设计方案与审核、资产图与逐图审核、音频文件、剧本和分镜、镜头图；最终 HTML 路径记在 `report.note`。每步状态变化后立即重渲染 HTML。`render` 可输出未完成草稿并列出质量门警示。
 
 ## images — 图片目录约定
 
-```
+```text
 <工作目录>/
 ├── <剧名>-assets.json
 ├── <剧名>-assets-report.html
-└── images/
-    └── han_li/
-        ├── period-01.png     ← 基准期锚点图（下游生成）
-        └── period-02.png     ← 衍生期（以 period-01 为参考图生图）
+├── script/                   ← 本作品新增的全部辅助/转换/批处理/校验脚本
+├── images/
+│   ├── 角色/han_li/
+│   │   ├── period-01.png     ← 基准期锚点图
+│   │   └── period-02.png     ← 衍生期（以 period-01 为参考图生图）
+│   ├── 场景/
+│   ├── 美工设计/
+│   ├── 道具/
+│   └── 镜头/
+└── audio/
 ```
 
-- 本 skill 不出图。`image` 字段指向的文件由下游生成后放好，重跑一次 `render` 即嵌进报告。
-- 文件不存在时报告渲染占位框，并在 时期变化 表里显示 `reference_image` 路径。
+- 图片使用相对 `images/` 的路径，如 `角色/han_li/period-01.png`；也兼容带 `images/` 前缀的项目内相对路径。
+- Agent 为当前作品新增的任何工具脚本必须放在项目 `script/`，不得散落于项目根目录或素材目录；skill 自带 CLI 位于 `{baseDir}/scripts/`。
+- `image` 字段指向的文件放好后，重跑 `render` 即嵌进报告。
+- 文件不存在时报告渲染占位框，并在时期变化表里显示 `reference_image` 路径。
 - `reference_image` 与 `image` 都相对 `images/` 目录。

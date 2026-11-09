@@ -72,6 +72,7 @@ function makeValid() {
         prompt_body: BODY_FACTION2,
       },
     ],
+    races: [],
     characters: [
       {
         id: 'c_hanli', name: '韩立', gender: '男', age: '16 岁',
@@ -105,13 +106,7 @@ function makeValid() {
       usage: '身份标识', source_ref: { chapter: 2, quote: '腰间挂着一方木牌' },
       prompt_body: BODY_PROP,
     }],
-    pipeline: {
-      steps: [
-        { id: 'config', label: '项目配置与风格锚点', status: 'done', note: '' },
-        { id: 'world', label: '世界观与势力', status: 'done', note: '' },
-        { id: 'report', label: 'HTML 报告输出', status: 'pending', note: '' },
-      ],
-    },
+    pipeline: initSkeleton('测试项目').pipeline,
   };
 }
 
@@ -197,6 +192,7 @@ throwsWith('R1 缺用途', () => { const d = makeValid(); d.props[0].usage = '';
 console.log('== G 组：结构 ==');
 throwsWith('G1 id 重复', () => { const d = makeValid(); d.props[0].id = 's_gate'; return d; }, /G1/);
 throwsWith('G2 非法 status', () => { const d = makeValid(); d.pipeline.steps[0].status = 'ok'; return d; }, /G2/);
+throwsWith('G2 不允许跳过前置步骤', () => { const d = makeValid(); d.pipeline.steps[1].status = 'done'; return d; }, /G2/);
 
 console.log('== 提示词拼装（确定性） ==');
 ok('基准期：锚点+五段+质量词+负面词', () => {
@@ -223,7 +219,7 @@ ok('init 骨架默认值齐备', () => {
   assert.strictEqual(d.project.faithful, true);
   assert.strictEqual(d.project.negative_common, DEFAULT_NEGATIVE);
   assert.strictEqual(d.project.style_anchor, '', '风格锚点必须留给用户确认后填');
-  assert.strictEqual(d.pipeline.steps.length, 7);
+  assert.strictEqual(d.pipeline.steps.length, 12);
 });
 ok('seed 搬运 outline.json 事实', () => {
   const doc = seedFromOutline({
@@ -247,7 +243,7 @@ try {
   ok('HTML：JSON 注入 + 导航 + 锚点 + 拼装提示词齐全', () => {
     const html = renderHtml(makeValid(), { jsonDir: tmp });
     assert.ok(html.includes('window.__ASSET_REPORT__'));
-    for (const t of ['进度总览', '项目配置', '世界观', '势力与阶级', '角色资产', '角色时期变化', '场景资产', '道具资产', '提示词库']) {
+    for (const t of ['进度总览', '项目配置', '世界观', '种族设定', '势力与阶级', '角色资产', '角色时期变化', '场景资产', '道具资产', '美工规划与检验', '资产图审核记录', '音频资产', '项目剧本与分镜', '镜头图', '提示词库']) {
       assert.ok(html.includes(t), '缺面板：' + t);
     }
     assert.ok(html.includes('3D 写实国风仙侠'));
@@ -255,13 +251,23 @@ try {
     assert.ok(html.includes('负面提示词：'));
     assert.ok(html.includes('img-ph'), '无图时应渲染占位框');
   });
-  ok('HTML：图片存在则把 URL 写进 JSON 注入（页面 JS 运行时渲染 img）', () => {
-    fs.mkdirSync(path.join(tmp, 'images', 'c_hanli'), { recursive: true });
-    fs.writeFileSync(path.join(tmp, 'images', 'c_hanli', 'period-01.png'), 'png');
+  ok('HTML：未完成阶段仍可输出并显示质量门警示', () => {
     const d = makeValid();
-    d.characters[0].periods[0].image = 'c_hanli/period-01.png';
+    d.project.style_anchor = '';
     const html = renderHtml(d, { jsonDir: tmp });
-    assert.ok(html.includes('"img":"images/c_hanli/period-01.png"'), '存在的图片应进 payload');
+    assert.ok(html.includes('当前质量门未通过'));
+    assert.ok(html.includes('12 步'));
+  });
+  ok('HTML：图片存在则把 URL 写进 JSON 注入（页面 JS 运行时渲染 img）', () => {
+    fs.mkdirSync(path.join(tmp, 'images', '角色', 'c_hanli'), { recursive: true });
+    fs.writeFileSync(path.join(tmp, 'images', '角色', 'c_hanli', 'period-01.png'), 'png');
+    const d = makeValid();
+    d.characters[0].periods[0].image = '角色/c_hanli/period-01.png';
+    const html = renderHtml(d, { jsonDir: tmp });
+    assert.ok(html.includes('"img":"images/%E8%A7%92%E8%89%B2/c_hanli/period-01.png"'), '中文目录图片应进 payload');
+    d.characters[0].periods[0].image = 'images/角色/c_hanli/period-01.png';
+    const prefixedHtml = renderHtml(d, { jsonDir: tmp });
+    assert.ok(prefixedHtml.includes('"img":"images/%E8%A7%92%E8%89%B2/c_hanli/period-01.png"'), '可接受含 images 前缀的项目内路径');
     const d2 = makeValid();
     d2.characters[0].periods[0].image = 'c_hanli/missing.png';
     const html2 = renderHtml(d2, { jsonDir: tmp });
