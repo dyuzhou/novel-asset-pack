@@ -1,0 +1,20 @@
+{
+  "scenes": [
+    {
+      "id": "scene-001",
+      "name": "旧渡口",
+      "era": "原文未说明",
+      "location": "河湾",
+      "faction_id": "faction-001",
+      "visual_anchors": ["渡船", "河岸"],
+      "source_refs": ["chapter-001"],
+      "claims": [
+        {
+          "text": "场景位于旧渡口。",
+          "provenance": "SOURCE_FACT",
+          "source_refs": ["chapter-001"]
+        }
+      ]
+    }
+  ]
+}

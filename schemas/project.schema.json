@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/original-manhua-production/project.schema.json",
+  "title": "Original Manhua Production Project",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "project_id",
+    "title",
+    "source_fidelity",
+    "aspect_ratio",
+    "data_files",
+    "phases",
+    "current_phase"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "project_id": { "type": "string", "minLength": 1 },
+    "title": { "type": "string", "minLength": 1 },
+    "created_at": { "type": "string", "format": "date-time" },
+    "source_scope": { "type": "string" },
+    "source_files": { "type": "array", "items": { "type": "string" } },
+    "source_fidelity": { "const": true },
+    "aspect_ratio": { "type": "string", "pattern": "^\\d{1,2}:\\d{1,2}$" },
+    "world_bible": { "type": "string" },
+    "data_files": { "type": "object", "additionalProperties": { "type": "string" } },
+    "current_phase": {
+      "anyOf": [
+        { "type": "null" },
+        { "enum": ["01-source-analysis", "02-art-direction", "03-master-assets", "04-derived-assets", "05-screenplay", "06-storyboard", "07-video", "08-audio-qc"] }
+      ]
+    },
+    "phases": {
+      "type": "array",
+      "minItems": 8,
+      "maxItems": 8,
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "status", "version"],
+        "properties": {
+          "id": { "enum": ["01-source-analysis", "02-art-direction", "03-master-assets", "04-derived-assets", "05-screenplay", "06-storyboard", "07-video", "08-audio-qc"] },
+          "name": { "type": "string", "minLength": 1 },
+          "status": { "enum": ["NOT_STARTED", "IN_PROGRESS", "VALIDATING", "PENDING_REVIEW", "APPROVED", "REJECTED", "FAILED", "BLOCKED", "STALE", "SKIPPED"] },
+          "version": { "type": "integer", "minimum": 1 },
+          "started_at": { "type": ["string", "null"] },
+          "approved_at": { "type": ["string", "null"] },
+          "approved_by": { "type": ["string", "null"] },
+          "approval_note": { "type": "string" },
+          "snapshot_sha256": { "type": ["string", "null"] },
+          "skipped_reason": { "type": ["string", "null"] },
+          "skipped_by": { "type": ["string", "null"] },
+          "skipped_at": { "type": ["string", "null"] }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

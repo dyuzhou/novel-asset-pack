@@ -1,0 +1,49 @@
+{
+  "assets": [
+    {
+      "id": "character-001-v001",
+      "asset_id": "character-001",
+      "version_id": "character-001-v001",
+      "version": 1,
+      "asset_type": "character",
+      "character_id": "character-001",
+      "variant_type": "主资产",
+      "file": "",
+      "prompt": "",
+      "prompt_version": "prompt-v1",
+      "approval_status": "PENDING",
+      "parent_asset_version_id": null,
+      "reference_asset_version_ids": []
+    },
+    {
+      "id": "scene-001-v001",
+      "asset_id": "scene-001",
+      "version_id": "scene-001-v001",
+      "version": 1,
+      "asset_type": "scene",
+      "scene_id": "scene-001",
+      "variant_type": "主资产",
+      "file": "",
+      "prompt": "",
+      "prompt_version": "prompt-v1",
+      "approval_status": "PENDING",
+      "parent_asset_version_id": null,
+      "reference_asset_version_ids": []
+    },
+    {
+      "id": "prop-001-v001",
+      "asset_id": "prop-001",
+      "version_id": "prop-001-v001",
+      "version": 1,
+      "asset_type": "prop",
+      "prop_id": "prop-001",
+      "variant_type": "主资产",
+      "file": "",
+      "prompt": "",
+      "prompt_version": "prompt-v1",
+      "approval_status": "PENDING",
+      "parent_asset_version_id": null,
+      "reference_asset_version_ids": []
+    }
+  ]
+}

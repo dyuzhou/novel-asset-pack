@@ -1,0 +1,23 @@
+{
+  "factions": [
+    {
+      "id": "faction-001",
+      "name": "渡口人家",
+      "class_system": ["摆渡人家"],
+      "visual_identity": {
+        "main_color": "河泥灰",
+        "pattern": "单结绳纹"
+      },
+      "description": "以摆渡为生的家族。",
+      "source_refs": ["chapter-001"],
+      "claims": [
+        {
+          "text": "阿禾的父亲曾经营渡船。",
+          "provenance": "INFERENCE",
+          "source_refs": ["chapter-001"],
+          "note": "由阿禾收船及父亲失踪的描述推断，待用户确认"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "shots": [
+    {
+      "id": "shot-001",
+      "screenplay_scene_id": "screenplay-001",
+      "event_id": "event-001",
+      "scene_id": "scene-001",
+      "character_ids": ["character-001"],
+      "prop_ids": ["prop-001"],
+      "asset_version_ids": ["character-001-v001", "scene-001-v001", "prop-001-v001"],
+      "shot_size": "全景",
+      "camera_angle": "平视",
+      "blocking": "阿禾位于画面左侧，渡船停在画面中央",
+      "action": "纸灯从河面漂近",
+      "expression": "克制的惊讶",
+      "composition": "河岸与渡船保持固定空间关系",
+      "lighting": "纸灯暖光对比夜雾冷光",
+      "camera_move": "缓慢推近",
+      "duration_seconds": 5,
+      "prompt": "",
+      "image_file": "",
+      "review_status": "PENDING"
+    }
+  ]
+}

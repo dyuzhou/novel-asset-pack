@@ -1,0 +1,41 @@
+{
+  "schema_version": "1.0",
+  "project_id": "replace-with-project-id",
+  "title": "作品名",
+  "created_at": "2026-01-01T00:00:00.000Z",
+  "source_scope": "",
+  "source_files": [],
+  "source_fidelity": true,
+  "aspect_ratio": "16:9",
+  "world_bible": "world/world_bible.md",
+  "data_files": {
+    "source_index": "data/source_index.json",
+    "story_events": "data/story_events.json",
+    "characters": "data/characters.json",
+    "factions": "data/factions.json",
+    "scenes": "data/scenes.json",
+    "props": "data/props.json",
+    "timeline": "data/timeline.json",
+    "asset_registry": "data/asset_registry.json",
+    "visual_style": "data/visual_style.json",
+    "costume_rules": "data/costume_rules.json",
+    "screenplay": "data/screenplay.json",
+    "story_coverage": "data/story_coverage.json",
+    "storyboard": "data/storyboard.json",
+    "production_tasks": "data/production_tasks.json",
+    "audio_timeline": "data/audio_timeline.json",
+    "quality_reports": "data/quality_reports.json",
+    "approvals": "data/approvals.json"
+  },
+  "phases": [
+    { "id": "01-source-analysis", "name": "原著解析与世界观建立", "status": "NOT_STARTED", "version": 1, "started_at": null, "approved_at": null, "approved_by": null, "approval_note": "", "snapshot_sha256": null, "skipped_reason": null, "skipped_by": null, "skipped_at": null },
+    { "id": "02-art-direction", "name": "美术总监与视觉体系设计", "status": "NOT_STARTED", "version": 1, "started_at": null, "approved_at": null, "approved_by": null, "approval_note": "", "snapshot_sha256": null, "skipped_reason": null, "skipped_by": null, "skipped_at": null },
+    { "id": "03-master-assets", "name": "主资产设计与生成", "status": "NOT_STARTED", "version": 1, "started_at": null, "approved_at": null, "approved_by": null, "approval_note": "", "snapshot_sha256": null, "skipped_reason": null, "skipped_by": null, "skipped_at": null },
+    { "id": "04-derived-assets", "name": "衍生资产生成", "status": "NOT_STARTED", "version": 1, "started_at": null, "approved_at": null, "approved_by": null, "approval_note": "", "snapshot_sha256": null, "skipped_reason": null, "skipped_by": null, "skipped_at": null },
+    { "id": "05-screenplay", "name": "原著忠实型剧本", "status": "NOT_STARTED", "version": 1, "started_at": null, "approved_at": null, "approved_by": null, "approval_note": "", "snapshot_sha256": null, "skipped_reason": null, "skipped_by": null, "skipped_at": null },
+    { "id": "06-storyboard", "name": "分镜设计与分镜图生成", "status": "NOT_STARTED", "version": 1, "started_at": null, "approved_at": null, "approved_by": null, "approval_note": "", "snapshot_sha256": null, "skipped_reason": null, "skipped_by": null, "skipped_at": null },
+    { "id": "07-video", "name": "视频生成", "status": "NOT_STARTED", "version": 1, "started_at": null, "approved_at": null, "approved_by": null, "approval_note": "", "snapshot_sha256": null, "skipped_reason": null, "skipped_by": null, "skipped_at": null },
+    { "id": "08-audio-qc", "name": "音频与最终质量审核", "status": "NOT_STARTED", "version": 1, "started_at": null, "approved_at": null, "approved_by": null, "approval_note": "", "snapshot_sha256": null, "skipped_reason": null, "skipped_by": null, "skipped_at": null }
+  ],
+  "current_phase": null
+}

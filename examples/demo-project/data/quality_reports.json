@@ -1,0 +1,21 @@
+{
+  "reports": [
+    {
+      "id": "demo-review-001",
+      "scope": "DEMO",
+      "status": "PENDING_REVIEW",
+      "checks": [
+        {
+          "id": "story-coverage",
+          "status": "PASS",
+          "note": "虚构示例事件均映射到剧本场次"
+        },
+        {
+          "id": "visual-assets",
+          "status": "NOT_RUN",
+          "note": "尚未生成真实图片"
+        }
+      ]
+    }
+  ]
+}

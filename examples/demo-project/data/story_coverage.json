@@ -1,0 +1,16 @@
+{
+  "coverage": [
+    {
+      "id": "coverage-001",
+      "event_id": "event-001",
+      "status": "COVERED",
+      "screenplay_scene_ids": ["screenplay-001"]
+    },
+    {
+      "id": "coverage-002",
+      "event_id": "event-002",
+      "status": "COVERED",
+      "screenplay_scene_ids": ["screenplay-001"]
+    }
+  ]
+}

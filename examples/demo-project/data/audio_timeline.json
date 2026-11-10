@@ -1,0 +1,14 @@
+{
+  "tracks": [
+    {
+      "id": "audio-plan-001",
+      "type": "NARRATION",
+      "start_seconds": 5,
+      "duration_seconds": 4,
+      "screenplay_scene_id": "screenplay-001",
+      "file": "",
+      "status": "PLANNED",
+      "notes": "示例只规划时间轴，不伪造音频文件"
+    }
+  ]
+}

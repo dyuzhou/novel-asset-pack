@@ -1,0 +1,29 @@
+{
+  "tasks": [
+    {
+      "id": "video-task-001",
+      "kind": "VIDEO",
+      "shot_id": "shot-001",
+      "reference_asset_version_ids": ["character-001-v001", "scene-001-v001", "prop-001-v001"],
+      "model": "",
+      "model_version": "",
+      "prompt": "",
+      "duration_seconds": 5,
+      "resolution": "按模型能力确定",
+      "aspect_ratio": "16:9",
+      "parameters": {},
+      "status": "QUEUED",
+      "output_file": "",
+      "failure_reason": "",
+      "background_music": false,
+      "dialogue_generation": false
+    },
+    {
+      "id": "final-render-001",
+      "kind": "FINAL_RENDER",
+      "status": "QUEUED",
+      "output_file": "",
+      "failure_reason": ""
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "characters": [
+    {
+      "id": "character-001",
+      "name": "阿禾",
+      "gender": "女",
+      "age": "原文未说明",
+      "identity": "旧渡口摆渡人的女儿",
+      "faction_id": "faction-001",
+      "identity_anchor": "原文未描述面容，造型待用户确认",
+      "source_refs": ["chapter-001"],
+      "claims": [
+        {
+          "text": "阿禾在旧渡口收船。",
+          "provenance": "SOURCE_FACT",
+          "source_refs": ["chapter-001"]
+        },
+        {
+          "text": "阿禾的具体面貌。",
+          "provenance": "UNKNOWN",
+          "source_refs": [],
+          "note": "示例不将未知信息补写成原著事实"
+        }
+      ]
+    }
+  ]
+}

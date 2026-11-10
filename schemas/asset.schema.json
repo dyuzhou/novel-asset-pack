@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Asset registry",
+  "type": "object",
+  "required": ["assets"],
+  "properties": {
+    "assets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "asset_id", "version_id", "version", "asset_type", "approval_status"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "asset_id": { "type": "string", "minLength": 1 },
+          "version_id": { "type": "string", "minLength": 1 },
+          "version": { "type": "integer", "minimum": 1 },
+          "asset_type": { "enum": ["character", "scene", "prop", "storyboard", "qc"] },
+          "file": { "type": "string" },
+          "parent_asset_version_id": { "type": ["string", "null"] },
+          "variant_type": { "type": ["string", "null"] },
+          "source_version": { "type": ["string", "null"] },
+          "prompt_version": { "type": ["string", "null"] },
+          "reference_asset_version_ids": { "type": "array", "items": { "type": "string" } },
+          "approval_status": { "enum": ["PENDING", "APPROVED", "REJECTED", "CHANGES_REQUESTED", "REGENERATE"] },
+          "stale": { "type": "boolean" },
+          "prompt": { "type": "string" }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

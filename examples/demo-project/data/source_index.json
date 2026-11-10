@@ -1,0 +1,11 @@
+{
+  "chapters": [
+    {
+      "id": "chapter-001",
+      "title": "纸灯",
+      "source_file": "source/chapter-001.txt",
+      "reading_status": "READ",
+      "paragraph_count": 1
+    }
+  ]
+}

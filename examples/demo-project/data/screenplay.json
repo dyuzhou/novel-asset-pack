@@ -1,0 +1,34 @@
+{
+  "scenes": [
+    {
+      "id": "screenplay-001",
+      "chapter_id": "chapter-001",
+      "event_ids": ["event-001", "event-002"],
+      "scene_id": "scene-001",
+      "character_ids": ["character-001"],
+      "time_weather": "夜雾渐浓",
+      "segments": [
+        {
+          "id": "segment-001",
+          "type": "ACTION",
+          "text": "阿禾收船时看见纸灯漂来，将它捞上岸。",
+          "duration_seconds": 5
+        },
+        {
+          "id": "segment-002",
+          "type": "NARRATION",
+          "speaker_id": null,
+          "text": "灯里没有火，却映出一圈温暖的光。",
+          "duration_seconds": 4
+        },
+        {
+          "id": "segment-003",
+          "type": "ACTION",
+          "text": "阿禾认出灯柄上的旧记号，把纸灯放在渡船中央等待。",
+          "duration_seconds": 8
+        }
+      ],
+      "estimated_duration_seconds": 17
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "rules": [
+    {
+      "id": "costume-001",
+      "faction_id": "faction-001",
+      "rank": "摆渡人家",
+      "rank_order": 1,
+      "color": "原文未说明，待确认",
+      "material": "原文未说明，待确认",
+      "structure": "原文未说明，待确认",
+      "pattern": "UNKNOWN",
+      "accessories": "不补充原文外身份配饰",
+      "weapon": "原文未说明",
+      "insignia": "原文未说明",
+      "ornament_level": "原文未说明，待确认",
+      "ornament_score": 1,
+      "provenance": "UNKNOWN"
+    }
+  ]
+}

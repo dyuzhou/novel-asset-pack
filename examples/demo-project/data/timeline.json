@@ -1,0 +1,16 @@
+{
+  "events": [
+    {
+      "id": "timeline-001",
+      "story_event_id": "event-001",
+      "order": 1,
+      "time": "夜雾渐浓前"
+    },
+    {
+      "id": "timeline-002",
+      "story_event_id": "event-002",
+      "order": 2,
+      "time": "夜雾渐浓时"
+    }
+  ]
+}

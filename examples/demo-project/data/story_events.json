@@ -1,0 +1,24 @@
+{
+  "events": [
+    {
+      "id": "event-001",
+      "chapter_id": "chapter-001",
+      "summary": "阿禾在旧渡口发现并捞起无火而发光的纸灯，认出父亲失踪那年留下的渡口记号。",
+      "character_ids": ["character-001"],
+      "location_ids": ["scene-001"],
+      "prop_ids": ["prop-001"],
+      "source_refs": ["chapter-001"],
+      "provenance": "SOURCE_FACT"
+    },
+    {
+      "id": "event-002",
+      "chapter_id": "chapter-001",
+      "summary": "夜雾渐浓，阿禾把纸灯放在渡船中央，留在渡口等待。",
+      "character_ids": ["character-001"],
+      "location_ids": ["scene-001"],
+      "prop_ids": ["prop-001"],
+      "source_refs": ["chapter-001"],
+      "provenance": "SOURCE_FACT"
+    }
+  ]
+}

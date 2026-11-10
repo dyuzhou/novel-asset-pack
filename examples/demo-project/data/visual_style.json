@@ -1,0 +1,12 @@
+{
+  "visual_style": "写意水墨动画，低饱和月白与墨青",
+  "aspect_ratio": "16:9",
+  "color_palette": ["月白", "墨青", "纸灯暖黄"],
+  "lighting_rules": ["夜雾环境光柔和", "纸灯暖光只照亮近处船板"],
+  "era_constraints": {
+    "allowed_elements": ["纸灯", "木船", "河岸"],
+    "forbidden_elements": ["电灯", "汽车", "现代码头设施"]
+  },
+  "quality_constraints": ["人物身份与参考图一致", "纸灯结构完整", "保持镜头空间连续"],
+  "negative_constraints": ["未经原著说明的新人物", "现代器物"]
+}

@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Screenplay",
+  "type": "object",
+  "required": ["scenes"],
+  "properties": {
+    "scenes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "chapter_id", "event_ids", "scene_id", "character_ids", "segments"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "chapter_id": { "type": "string" },
+          "event_ids": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+          "scene_id": { "type": "string" },
+          "character_ids": { "type": "array", "items": { "type": "string" } },
+          "time_weather": { "type": "string" },
+          "segments": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["id", "type", "text"],
+              "properties": {
+                "id": { "type": "string" },
+                "type": { "enum": ["DIALOGUE", "NARRATION", "INNER_MONOLOGUE", "ACTION", "ENVIRONMENT"] },
+                "speaker_id": { "type": ["string", "null"] },
+                "text": { "type": "string", "minLength": 1 },
+                "duration_seconds": { "type": "number", "minimum": 0 }
+              },
+              "additionalProperties": true
+            }
+          }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

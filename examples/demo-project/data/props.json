@@ -1,0 +1,19 @@
+{
+  "props": [
+    {
+      "id": "prop-001",
+      "name": "纸灯",
+      "owner": "原文未说明",
+      "material": "原文未说明",
+      "function": "承载父亲留下的渡口记号",
+      "source_refs": ["chapter-001"],
+      "claims": [
+        {
+          "text": "纸灯没有火但映出温暖的光。",
+          "provenance": "SOURCE_FACT",
+          "source_refs": ["chapter-001"]
+        }
+      ]
+    }
+  ]
+}

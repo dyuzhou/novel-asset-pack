@@ -1,194 +1,102 @@
 ---
-name: novel-asset-pack
-version: 1.0.0
-description: |
-  把小说/原著文本推进为 AI 漫剧制作资产：全文分析、世界观、势力与阶级、角色（含多时期）、种族、场景、道具、美工设计、音频、剧本、分镜与镜头图。
-  忠实原著——不改写、不删减、不合并人物、不加短剧钩子；全局风格锚点一次锁定并自动注入每条提示词；
-  同一角色衍生时期默认以参考图生图方式创作（脸型只微调、原著硬特征如断臂刀疤永不消失），
-  仅原著明确描写的幻化/易容情节才允许重开新图。
-  每个阶段更新 pipeline 并重渲染 HTML；报告可显示未完成阶段和质量门警示。图片按角色/场景/美工设计/道具/镜头分目录保存。
-  零依赖脚本负责结构、报告和质量门；实际图像/音频生成使用当前 Agent 可用的生成工具，不可用时必须如实阻塞，不得标记完成。
-  有 shuohao novel-outline 的 outline.json 可 seed 预填清单。
-  Use when asked to 小说转漫剧、原著资产整理、漫剧资产包、角色设定集、资产报告、提示词库、拆角色拆场景。
-triggers:
-  - novel-asset-pack
-  - 漫剧资产
-  - 资产包
-  - 原著资产
-  - 小说转漫剧
-  - 角色设定集
-  - 拆角色
-  - 拆场景
-  - 提示词库
-  - 资产报告
+name: original-manhua-production
+description: 原著忠实型 AI 漫剧制作总监。按八个需用户确认的阶段，把原著整理为可追溯的世界观、视觉体系、资产、剧本、分镜、视频和音频生产包；不擅自增删改编剧情。
 metadata:
+  display_name: 原著忠实型 AI 漫剧制作总监
+  version: 2.0.0
   license: Apache-2.0
   requires:
     bins:
-      - node          # >= 18，只用标准库，无 npm 依赖
+      - node
 ---
 
-## novel-asset-pack
+# 原著忠实型 AI 漫剧制作总监
 
-把一本小说/原著整理成**可直接喂给下游生图的资产包**。前提刻在骨子里：这些资产要被生成几十上百次还得长一样，所以交付物全部围绕一致性：
+## 使命与边界
 
-| 交付 | 解决什么 |
+把用户指定的原著逐步生产为 AI 漫剧制作包。遵循：**原著忠实、美术先行、资产统一、分镜可控、视频独立、人工确认、数据可追溯**。
+
+- 不擅自新增、删减、合并、调序剧情；不改变人物关系、动机、性格或结局。
+- 明确区分 `SOURCE_FACT`、`INFERENCE`、`ART_DECISION`、`UNKNOWN`；推断与美术补充不得伪装成原著事实。
+- 用户要求改编、压缩、改悬念、加冲突或商业钩子时，暂停并先说明与本 Skill 的原著忠实职责冲突；只有用户明确改换目标后才按新要求继续。
+- 生成图片/视频/音频必须使用当前 Agent 实际可用的能力。没有能力时如实阻塞，不得伪造结果、路径、审核或生成状态。
+- 本仓库只提供 Agent Skill、JSON 数据约定、Node.js 脚本和静态审核报告；不提供平台、画布、编辑器或生成 API。
+
+## 开始或续作
+
+1. 在用户指定的项目目录中查找 `project.json`。若存在，以其中的数据、审批记录和质量报告恢复进度；不能依赖聊天记录。
+2. 若不存在，确认原著输入位置、作品名称、章节范围、画幅和视觉偏好。不要反复询问已经明确的事项。然后创建项目：
+
+   ```bash
+   node <skill-dir>/scripts/manhua.mjs init "<作品名>" "<项目目录>"
+   ```
+
+3. 项目正式数据必须写入用户项目目录，不能写入 Skill 安装目录。原著文件放在 `source/` 或由用户指定的位置。`images/角色/`、`images/场景/`、`images/道具/`、`images/分镜/`、`images/质检/` 必须平铺，不得创建子目录。
+4. 阅读本轮阶段对应的 reference；不要一次性加载所有知识文档。
+5. 先运行 `validate` 查看结构错误，再开始当前阶段。每阶段必须执行“读取已确认输入 → 产出 → 保存 → 校验 → 回读 → 生成报告 → 展示 → 等待用户确认”。
+
+## 八阶段状态机
+
+阶段顺序固定。Agent 可以自主完成当前阶段内的批次工作和重试，但不得跳到下一阶段，也不能把自己的检查当作用户批准。
+
+| 阶段 | 交付与按需阅读 |
 | --- | --- |
-| 全局风格锚点（锁定 + 自动注入） | 所有资产一个画风；用户改锚点等于重做，所以开局锁死 |
-| 固定主体锚点 + 原著硬特征 | 同一角色跨时期跨镜头是一张脸；断臂、刀疤永不消失 |
-| 时期机制（基准期 → 图生图衍生期） | 角色成长不换脸：衍生期默认参考图生图，脸型只微调 |
-| 势力/阶级服饰区分门 | 不同势力、不同阶级同框一眼可辨 |
-| 统一提示词结构 + 脚本拼装 | 风格+视角+主体+背景+细节+光影+质量词+负面词，逐条结构一致 |
-| 离线单页 HTML 报告 | 进度总览、资产卡片、时期对照、提示词库，双击可开 |
+| 01 原著解析与世界观建立 | `world/world_bible.md`、章节索引、事件/人物/势力/场景/道具/时间线；读 `references/phase-01-source.md`、`references/novel-fidelity.md` |
+| 02 美术总监与视觉体系设计 | Art Bible、`visual_style.json`、逐势力逐等级服饰规则；读 `references/phase-02-art-direction.md` |
+| 03 主资产设计与生成 | 人物、场景、道具标准参考图及审核；读 `references/phase-03-master-assets.md` |
+| 04 衍生资产生成 | 有明确父版本的时期、换装、状态和环境变体；读 `references/phase-04-variants.md` |
+| 05 原著忠实型剧本 | 结构化剧本、逐事件覆盖、对白/旁白/独白/动作/环境时长；读 `references/phase-05-screenplay.md` |
+| 06 分镜设计与分镜图生成 | 按场次拆镜、资产引用、连续性检查和经审核的分镜图；读 `references/phase-06-storyboard.md` |
+| 07 视频生成 | 从已审核分镜图建任务，记录模型/参数/真实状态/文件；默认无音乐、无模型对白；读 `references/phase-07-video.md` |
+| 08 音频与最终质量审核 | 独立音轨、最终声画/剧情/资产连续性质检和输出；读 `references/phase-08-audio-qc.md` |
 
-`{baseDir}` = 本文件所在目录。脚本 `{baseDir}/scripts/asset-pack.mjs`，零依赖，`node` 直接跑。
+### 人工确认规程
 
-**边界**：不做改编大纲（`novel-outline` 的活），也不自行调用未授权或不存在的生成服务。Agent 可使用当前环境已提供的图像/音频工具执行生成；若没有工具，保留该阶段为 `in_progress` 并在 HTML 写明阻塞原因。忠实原著，不删线、不合人、不加钩子；用户要求改编短剧/压缩篇幅/加钩子时，停下来改走 shuohao `novel-outline`。
+1. 用脚本 `begin` 开始当前阶段。上一阶段未为 `APPROVED` 时，脚本会拒绝进入下一阶段。
+2. 完成后执行 `submit`。质量门失败时逐项修复并重新提交；通过后阶段状态为 `PENDING_REVIEW`。
+3. 把 HTML 审核报告、差异、未解决项和待用户决定的问题展示给用户，然后停止。只有用户明确回复确认，才可记录：
 
----
+   ```bash
+   node <skill-dir>/scripts/manhua.mjs approve "<项目目录>" "<阶段ID>" --by "<确认人>" --note "<确认说明>"
+   ```
 
-### Step 1 — 项目配置与风格锚点（一次问完）
+4. 用户驳回或要求修改时记录驳回原因，留在当前阶段。按用户指定内容修改，只重检受影响的下游。
+5. 已批准内容不可静默覆盖。新生成内容必须建立新版本。修改已批准成果后运行 `refresh-stale`；该命令只将已变更阶段及顺序依赖的后续阶段标记为 `STALE`，不自动重做任何产物。
+6. `SKIPPED` 仅在用户明确授权且写明原因时可使用，记录命令为 `skip`；不得由 Agent 自行决定跳过。
 
-一轮问清，不要轮流盘问；用户回复"全部默认"即按默认值直接进入 Step 1：
+所有状态使用 `NOT_STARTED`、`IN_PROGRESS`、`VALIDATING`、`PENDING_REVIEW`、`APPROVED`、`REJECTED`、`FAILED`、`BLOCKED`、`STALE`、`SKIPPED`。
 
-| 项 | 默认值 |
-| --- | --- |
-| 画幅比例 | `16:9` |
-| 风格方向 | 3D 写实 / UE5 / 国风仙侠 / 偏《凡人修仙传》质感 |
-| 是否忠实原著 | 是（不改写、不删减、不加钩子） |
-| 是否生成 HTML 资产报告 | 是（含分步进度与总进度） |
-| 是否直接进入原著阅读与资产整理 | 是 |
+## 质量门、报告与自测
 
-用户给了原著文本之外的任何"改编/压缩/加钩子"诉求 → 停下来说明本 skill 不做改编，请走 novel-outline。
-先创建项目根目录、assets.json 与 HTML 报告；所有阶段以同一份 JSON 为源，并在每一步完成后更新报告。
-
-```bash
-node {baseDir}/scripts/asset-pack.mjs init <剧名> > <工作目录>/<剧名>-assets.json
-```
-
-`init` 产出骨架：画幅/质量词/负面词/固定 12 步 pipeline 已就位，风格锚点留空，用户确认后才填。创建目录：
-
-```text
-script/                         # 本次项目新增的所有辅助/转换/批处理工具脚本
-images/角色/  images/场景/  images/美工设计/  images/道具/  images/镜头/
-audio/
-```
-
-**工具脚本放置纪律**：Agent 为当前制作项目新建的工具脚本（生成辅助、批量处理、转换、校验等）全部放在 `<工作目录>/script/`，统一从此目录调用；不得散落在项目根目录、`images/`、`audio/` 或其他目录。这里指当前作品项目的脚本，不是本 skill 自带的 `{baseDir}/scripts/asset-pack.mjs` 与 `selftest.mjs`。
-
-1. 一轮问清画幅、风格方向、是否忠实原著、是否生成 HTML、原著输入范围；“全部默认”即按默认值继续。
-2. 起草并确认全局风格锚点（用户换风格就按同结构重组）：
-
-   > 3D 写实国风仙侠，UE5 引擎质感，PBR 材质，电影级光影，低饱和厚重色调，人物比例写实，服饰符合门派阶级设定，画面稳定统一，禁止 Q 版、卡通渲染、过度美颜
-
-3. 锚点经用户确认后写入 `project.style_anchor` 并锁定；此后所有图像提示词由脚本自动注入。
-4. 只将 `config` 标为 `done`，写明确认内容并渲染 HTML。
-
-### Step 2 — 通读原著：世界观与势力统计
-
-先完整阅读用户提供的全部原文或明确范围，不可只看开头、摘要或抽样章节后声称全文完成。记录 `source_analysis.scope`、`chapters_read`、`statistics` 与未确认项；再依 `references/world-pass.md` 提取 `world` 六项、所有势力、势力关系、体系和阶级数据。统计需能核对来源；原文未明示的内容标暂定，不伪装成原著事实。完成后更新 `fulltext` 与 HTML。
-
-### Step 3 — 资产清单与时期整理
-
-依 `references/character-pass.md` 与 `references/art-pass.md` 建立完整资产清单：角色及各时期、种族、场景、道具、势力引用和数量统计。按剧情发生时期拆分外观/服饰变化，保留来源依据；不合并人物、不漏掉原文提及的重要资产。角色继续遵守下方一致性铁律。完成后更新 `inventory` 与 HTML。
-
-### Step 4 — 美工规划
-
-先做设计规划，不急着批量出资产图。`art_plans` 至少覆盖各势力及其阶级服饰梯度、种族外形特征，以及核心角色/场景的视觉规则；明确轮廓、材质、颜色、纹样、等级差异和可复用提示词。原文没有给出的设计必须标注暂定。用可用图像工具生成美工设计图，保存到 `images/美工设计/`，写回 `art_plans[].image`，并更新 HTML。
-
-### Step 5 — 美工图检验（不能跳）
-
-逐张对照世界观检查美工设计图：时代器物、建筑、服饰和技术水平正确；古代修仙世界不得混入现代物件、现代标识或英文字母，除非原著明确存在；语言文字仅使用世界观允许的文字，无法确认的文字应去除。另检查势力阶级可辨、种族特征一致、无串设定。逐项记录 `art_plans[].review` 的 `status`、`worldview`、`anachronism`、`language` 和说明。未全部通过不得进入资产图生成。更新 `art_review` 与 HTML。
-
-### Step 6 — 资产图生成
-
-只根据已通过的美工设计与资产提示词生成角色时期图、场景图、种族/势力图、道具图。角色衍生时期必须使用基准图或已生成时期图作参考图生图。图片放在项目根目录下：`images/角色/`、`images/场景/`、`images/道具/`；种族/势力图按资产类别放入 `images/美工设计/`。JSON 图片字段统一填写相对 `images/` 的路径，例如 `角色/han_li/period-01.png`。每批完成就更新 JSON 与 HTML。
-
-### Step 7 — 资产图检验（不能跳）
-
-逐张检查与美工图的对应关系、角色脸部与固定特征、时期服饰、构图完整性及世界观禁项；不合格图重生并重新检查。每张合格图在 `image_reviews` 记录 `asset_id`、`image`、`status: approved` 与检查说明。未全部通过不得进入音频阶段。更新 `asset_review` 与 HTML。
-
-### Step 8 — 音频生成
-
-按剧本需要规划并生成旁白、对白、角色音色、环境音与音乐；每项写入 `audio_assets`，音频文件放在项目根目录 `audio/`，记录相对项目根目录的 `file` 路径。若当前没有可用音频工具，维持 `in_progress` 并说明阻塞，不可伪造完成。更新 HTML。
-
-### Step 9 — 项目剧本与分镜
-
-依据原著资产生成剧本、场次与镜头表，不擅改剧情事实。`production.scripts` 记录剧集/文件/摘要；`production.shots` 记录镜头编号、场景、角色、景别、机位、动作、对白/声音和所引用的资产 ID。先完成可审核的镜头清单，再进入镜头图生成。更新 HTML。
-
-### Step 10 — 批量镜头图
-
-基于已审核的资产图与美工图制作镜头图，尽量复用角色/场景/道具参考图；相同场景、角色和构图变化用参考图或批次复用，避免重复生成，控制成本。每个镜头记录 `asset_refs`、`reuse_note`、提示词与图片路径，图片放入 `images/镜头/<剧集>/`。逐批更新 HTML。
-
-**每一步报告纪律**：完成任一步后，先更新该步骤状态和简明统计/阻塞说明，再运行 `render` 覆盖项目内 HTML；不得攒到最后一次性更新。`render` 支持草稿，未完成质量门会在报告中显示警示。只有当前阶段交付物齐全且检查通过，才能推进下一步；没有生成工具时停在当前 `in_progress`。
-
-**角色一致性三条铁律**（character-pass.md 里有全文）：
-
-- 每个角色一段 `identity_anchor` 固定主体描述，全时期全镜头复用，措辞不可替换
-- `fixed_features`（断臂/刀疤/跛足…）逐时期写进主体段，图生图微调不许抹掉
-- 衍生时期默认图生图；只有原著明确描写的幻化/易容/变形才 `source_described: true` 重开新图，且保留未被剧情消除的特征。**Agent 不得自行判断"变化太大所以重新生成"**
-
-### Step 11 — 最终质量校验 ⛔ 不能跳
-
-```bash
-node {baseDir}/scripts/asset-pack.mjs validate <工作目录>/<剧名>-assets.json
-```
-
-质量门逐条检查：项目与世界观、势力/角色/场景/道具结构、提示词、角色时期一致性、pipeline 固定顺序与禁止跳关、已完成阶段的交付物（美工审查、图像审查、音频、剧本/分镜、镜头图）。`checkup` 可看逐门明细。
-
-有违规逐条修，改完重跑，直到通过。完成后将 `validate` 标为 `done` 并更新 HTML。
-
-### Step 12 — 输出与汇报
-
-```bash
-cd <工作目录>
-node {baseDir}/scripts/asset-pack.mjs render <剧名>-assets.json --html > <剧名>-assets-report.html
-node {baseDir}/scripts/asset-pack.mjs render <剧名>-assets.json --md   > <剧名>-assets.md   # 需要贴文档时
-```
-
-报告为离线单页：进度总览 / 项目配置 / 世界观 / 种族 / 势力 / 角色及时期 / 场景 / 道具 / 美工规划与检验 / 音频 / 剧本与分镜 / 镜头图 / 提示词库。每个阶段更新后都重跑 render；图片与音频相对项目目录链接。最终报告路径写入 `pipeline.steps[report].note`，然后再渲染一次并将 `report` 标为 `done`。
-
-汇报需说明原文阅读范围与统计、角色/时期/种族/势力/场景/道具数量、美工与资产图审核结果、音频/剧本/分镜/镜头图状态、风格锚点及 HTML 路径；未完成或受工具限制的阶段明确列出，不得宣称已完成。
-
-最终落地：
-
-```
-<工作目录>/
-├── <剧名>-assets.json
-├── <剧名>-assets.md          （可选）
-├── <剧名>-assets-report.html ← 双击就能开
-├── script/                   ← 本项目新增的全部工具脚本
-├── images/
-│   ├── 角色/
-│   ├── 场景/
-│   ├── 美工设计/
-│   ├── 道具/
-│   └── 镜头/
-└── audio/
-```
-
----
-
-## 与 shuohao-skills 的关系
-
-- 输入可吃上游：有 `novel-outline` 的 `outline.json` 就先 `seed` 搬运角色/场景/道具清单（确定性，不让模型重想一遍），再补理解字段：
+- 尽可能用脚本确定性检查 ID、必需结构、原著章节/事件引用、事件覆盖、资产父子版本、文件路径/内容/重复、图片目录平铺、剧本/分镜/视频引用、阶段状态和确认快照。
+- 自动检查无法证明审美、人物脸部一致、原著理解正确或服饰等级恰当。此类内容必须作为人工审核事项，不得宣称自动质检百分之百正确。
+- 任何失败都要保留规则 ID、文件、对象、问题和修复建议。不要只回报 PASS/FAIL。
+- 每次向用户提交阶段成果前更新报告：
 
   ```bash
-  node {baseDir}/scripts/asset-pack.mjs seed outline.json <剧名> > <剧名>-assets.json
+  node <skill-dir>/scripts/manhua.mjs report "<项目目录>" "reports/review.html"
   ```
 
-- 输出可进下游：`<剧名>-assets.json` 命名跟随 shuohao 工作目录约定；报告独立成页，也可作为第六个面板并入 shuohao 的 `report.mjs` 单页汇编（它按 flag 收各阶段 json，加一段 pane 配置即可）。角色时期成图可直接当 `character-refs` 的参考图输入。
+- 通过 `scripts/selftest.mjs` 自测。本地测试不调用模型、不生成媒体、不消耗模型额度：
 
-## 边界
+  ```bash
+  node <skill-dir>/scripts/selftest.mjs
+  ```
 
-- **忠实原著**：不改写剧情、不删减/合并人物、不加短剧钩子；资产只做整理与归纳，原文没写的设定标注"暂定"等确认
-- **风格锁死**：锚点确认后不再改；所有提示词由脚本注入锚点，结构保证不漂
-- **脸不重开**：衍生期一律图生图微调；重开新图仅限原著明确描写且用户可见依据
-- **生成能力取决于当前 Agent 工具**：脚本不私自调用 API；可用图像/音频工具时按流程生成，不可用时在当前步骤报告阻塞
-- 报告界面中文；出图提示词中文书写（结构与负面词已固化，接英文模型时在 `project` 层加译即可）
-
-## 自测
+## 通用命令
 
 ```bash
-node {baseDir}/scripts/selftest.mjs
+node <skill-dir>/scripts/manhua.mjs validate "<项目目录>"
+node <skill-dir>/scripts/manhua.mjs validate "<项目目录>" --stage 01-source-analysis
+node <skill-dir>/scripts/manhua.mjs status "<项目目录>"
+node <skill-dir>/scripts/manhua.mjs prompt "<项目目录>" ASSET "<项目内片段.json>"
+node <skill-dir>/scripts/manhua.mjs impact "<项目目录>" "<资产版本ID>"
+node <skill-dir>/scripts/manhua.mjs begin "<项目目录>" 01-source-analysis
+node <skill-dir>/scripts/manhua.mjs submit "<项目目录>" 01-source-analysis
+node <skill-dir>/scripts/manhua.mjs approve "<项目目录>" 01-source-analysis --by "<确认人>"
+node <skill-dir>/scripts/manhua.mjs reject "<项目目录>" 01-source-analysis --by "<确认人>" --note "<修改原因>"
+node <skill-dir>/scripts/manhua.mjs skip "<项目目录>" 01-source-analysis --by "<授权人>" --note "<明确授权原因>"
+node <skill-dir>/scripts/manhua.mjs refresh-stale "<项目目录>"
 ```
+
+完整字段契约见 `references/data-contracts.md`；静态页面里的审核选择只保存在浏览器本地，必须由 Agent 根据用户决定写回项目数据，不能当作确认记录。
