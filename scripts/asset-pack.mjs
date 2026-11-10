@@ -32,16 +32,25 @@ const PIPELINE_STEPS = [
   ['config', '项目配置与风格锚点'],
   ['fulltext', '阅读全文：世界观与势力统计'],
   ['inventory', '资产整理：角色、种族、场景与时期'],
+  ['script_storyboard', '剧情事件、对白提取与分镜设计'],
   ['art_plan', '美工规划：势力阶级与种族设计'],
   ['art_review', '美工图检验：世界观与时代一致性'],
   ['asset_images', '资产图生成：角色、场景与道具'],
   ['asset_review', '资产图检验：一致性与质量'],
-  ['audio', '音频生成'],
-  ['script_storyboard', '项目剧本与分镜生成'],
+  ['audio', '分轨音频制作与配音'],
   ['shot_images', '批量镜头图：复用资产并控制成本'],
+  ['postproduction', '连续性剪辑与统一混音'],
+  ['quality_check', '剧情、画面与音频质量检查'],
   ['validate', '最终质量门校验'],
   ['report', 'HTML 报告输出'],
 ];
+
+const VIDEO_TRACKS = ['V1', 'V2', 'V3'];
+const AUDIO_TRACKS = ['A1', 'A2', 'A3', 'A4', 'A5'];
+const GENERIC_SHOT_COPY = ['关键事件推进', '人物反应', '动作展开', '氛围细节', '人物入场'];
+const SHOT_TYPES = new Set(['全景', '中景', '近景', '特写']);
+const NARRATION_TYPES = new Set(['narrator', 'inner_monologue']);
+const QUALITY_DOMAINS = ['story', 'visual', 'audio'];
 
 const CAMERA_WORDS = [
   '中景', '近景', '远景', '全景', '特写', '平视', '俯视', '仰视',
@@ -221,13 +230,16 @@ export function gateList(doc) {
   const checks = [
     ['fulltext', 'source_analysis.scope + chapters_read + statistics',
       nonEmpty(d.source_analysis?.scope) && Number(d.source_analysis?.chapters_read) > 0 && isObj(d.source_analysis?.statistics) && Object.keys(d.source_analysis.statistics).length > 0],
+    ['script_storyboard', 'production.story_events、dialogues、narration 与完整分镜',
+      productionDeliverablesComplete(production)],
     ['art_plan', '至少一份 art_plans 设计方案', artPlans.length > 0],
     ['art_review', '所有美工方案均通过世界观/时代/语言检查', artPlans.length > 0 && artPlans.every((p) => p.review?.status === 'approved' && p.review?.worldview === true && p.review?.anachronism === true && p.review?.language === true)],
     ['asset_images', '所有种族/势力/角色时期/场景/道具均有 image 路径', generatedImages.length > 0 && missingImages.length === 0],
     ['asset_review', '所有资产图均有 approved image_reviews 记录', imagePaths.length > 0 && imagePaths.every((image) => imageReviewPaths.has(image))],
-    ['audio', 'audio_assets 中每项均有 file', audioAssets.length > 0 && audioAssets.every((it) => nonEmpty(it.file))],
-    ['script_storyboard', 'production.scripts 与 production.shots 均非空', (production.scripts ?? []).length > 0 && shots.length > 0],
+    ['audio', '分轨计划、角色固定音色与音频文件完整', audioPlanComplete(production, audioAssets)],
     ['shot_images', '每个 production.shots 项均有 image', shots.length > 0 && shots.every((it) => nonEmpty(it.image))],
+    ['postproduction', '时间轴、单次混音及最终成片输出已记录', postproductionComplete(production)],
+    ['quality_check', '剧情、画面、音频检查均通过且有记录', qualityChecksComplete(production)],
   ];
   for (const [stepId, requirement, ok] of checks) {
     if (completed(stepId)) add('G3', `步骤「${stepId}」交付物完整`, ok, ok ? '' : `缺少：${requirement}`);
@@ -331,6 +343,213 @@ export function gateList(doc) {
     gates.push(...promptGates(label, p?.prompt_body, styleToks));
   }
 
+  gates.push(...productionGates(d));
+
+  return gates;
+}
+
+function productionDeliverablesComplete(production) {
+  const events = production.story_events;
+  const dialogues = production.dialogues;
+  const narration = production.narration;
+  const shots = production.shots;
+  return Array.isArray(production.scripts) && production.scripts.length > 0
+    && Array.isArray(events) && events.length > 0
+    && Array.isArray(dialogues) && Array.isArray(narration)
+    && Array.isArray(shots) && shots.length > 0;
+}
+
+function audioPlanComplete(production, audioAssets) {
+  const plan = production.audio_plan;
+  return isObj(plan)
+    && Array.isArray(plan.voice_profiles)
+    && Array.isArray(plan.tracks) && plan.tracks.length > 0
+    && plan.exclude_video_bgm === true
+    && isObj(plan.mix) && plan.mix.dialogue_ducking === true
+    && audioAssets.length > 0 && audioAssets.every((it) => nonEmpty(it.file));
+}
+
+function postproductionComplete(production) {
+  const timeline = production.timeline;
+  return isObj(timeline)
+    && VIDEO_TRACKS.every((track) => timeline.video_tracks?.includes(track))
+    && AUDIO_TRACKS.every((track) => timeline.audio_tracks?.includes(track))
+    && timeline.final_mix_count === 1
+    && timeline.exclude_video_bgm === true
+    && nonEmpty(timeline.final_video_file);
+}
+
+function qualityChecksComplete(production) {
+  const checks = production.quality_checks;
+  return isObj(checks) && QUALITY_DOMAINS.every((domain) =>
+    Array.isArray(checks[domain]) && checks[domain].length > 0
+      && checks[domain].every((item) => item?.status === 'passed' && nonEmpty(item?.scope_ref) && nonEmpty(item?.notes)));
+}
+
+function productionGates(doc) {
+  const production = doc.production ?? {};
+  const events = Array.isArray(production.story_events) ? production.story_events : [];
+  const dialogues = Array.isArray(production.dialogues) ? production.dialogues : [];
+  const narration = Array.isArray(production.narration) ? production.narration : [];
+  const shots = Array.isArray(production.shots) ? production.shots : [];
+  const gates = [];
+  const add = (id, label, ok, detail = '') => gates.push({ id, label, ok: !!ok, detail });
+  const required = (obj, fields) => fields.filter((field) => !nonEmpty(obj?.[field]));
+  const uniqueIds = new Set();
+  const registerId = (id, label) => {
+    const valid = nonEmpty(id) && !uniqueIds.has(id);
+    if (valid) uniqueIds.add(id);
+    add('PR1', `${label} id 唯一`, valid, !nonEmpty(id) ? '缺少 id' : uniqueIds.has(id) && !valid ? `重复 id：${id}` : '');
+  };
+
+  for (const event of events) {
+    const label = `剧情事件「${event?.event_id ?? '?'}」`;
+    registerId(event?.event_id, label);
+    const miss = required(event, ['source_chapter', 'source_text_position', 'source_quote', 'location_ref', 'cause', 'progression', 'result', 'importance']);
+    if (!Array.isArray(event?.participants) || event.participants.length === 0) miss.push('participants');
+    if (!Array.isArray(event?.prop_refs)) miss.push('prop_refs（无道具时填空数组）');
+    add('PR2', `${label} 原文依据与事件结构`, miss.length === 0, miss.length ? `缺：${miss.join('、')}` : '');
+  }
+  for (const dialogue of dialogues) {
+    const label = `对白「${dialogue?.dialogue_id ?? '?'}」`;
+    registerId(dialogue?.dialogue_id, label);
+    const miss = required(dialogue, ['speaker_ref', 'original_text', 'emotion', 'delivery_style', 'target_listener', 'source_chapter', 'source_text_position']);
+    add('PR3', `${label} 说话人、表演与出处`, miss.length === 0, miss.length ? `缺：${miss.join('、')}` : '');
+  }
+  for (const item of narration) {
+    const label = `叙述文本「${item?.narration_id ?? '?'}」`;
+    registerId(item?.narration_id, label);
+    const miss = required(item, ['original_text', 'source_chapter', 'source_text_position']);
+    if (!NARRATION_TYPES.has(item?.type)) miss.push('type（narrator / inner_monologue）');
+    if (item?.type === 'inner_monologue' && !nonEmpty(item?.speaker_ref)) miss.push('inner_monologue 的 speaker_ref');
+    add('PR4', `${label} 类型区分与原文出处`, miss.length === 0, miss.length ? `缺：${miss.join('、')}` : '');
+  }
+
+  const sceneIds = new Set((doc.scenes ?? []).map((scene) => scene?.id).filter(nonEmpty));
+  const characterIds = new Set((doc.characters ?? []).map((character) => character?.id).filter(nonEmpty));
+  const propIds = new Set((doc.props ?? []).map((prop) => prop?.id).filter(nonEmpty));
+  const eventIds = new Set(events.map((event) => event?.event_id).filter(nonEmpty));
+  const dialogueIds = new Set(dialogues.map((dialogue) => dialogue?.dialogue_id).filter(nonEmpty));
+  const narrationIds = new Set(narration.map((item) => item?.narration_id).filter(nonEmpty));
+  const genericCopy = (value) => GENERIC_SHOT_COPY.find((phrase) => String(value ?? '').includes(phrase));
+
+  for (const shot of shots) {
+    const label = `镜头「${shot?.shot_id ?? shot?.id ?? '?'}」`;
+    const id = shot?.shot_id ?? shot?.id;
+    registerId(id, label);
+    const miss = required(shot, [
+      'scene_ref', 'beat_id', 'camera', 'camera_movement', 'action', 'character_action',
+      'expression', 'emotion', 'shot_purpose', 'transition', 'continuity', 'visual_anchor',
+    ]);
+    if (!SHOT_TYPES.has(shot?.shot_type)) miss.push('shot_type（全景/中景/近景/特写）');
+    if (!Number.isFinite(shot?.duration_s) || shot.duration_s <= 0) miss.push('duration_s（正数）');
+    if (!Array.isArray(shot?.char_refs) || !Array.isArray(shot?.prop_refs)
+      || !Array.isArray(shot?.dialogue_refs) || !Array.isArray(shot?.narration_refs)
+      || !Array.isArray(shot?.event_refs) || !Array.isArray(shot?.sound_cues)) {
+      miss.push('char_refs/prop_refs/dialogue_refs/narration_refs/event_refs/sound_cues 数组');
+    }
+    const continuityFields = ['character_positions', 'prop_positions', 'eyelines', 'action_handoff', 'lighting_time'];
+    const continuityMissing = continuityFields.filter((field) => !nonEmpty(shot?.continuity?.[field]));
+    if (continuityMissing.length) miss.push(`continuity.${continuityMissing.join('/')}`);
+    if (shot?.generation_duration_s != null && (!Number.isFinite(shot.generation_duration_s) || shot.generation_duration_s <= 0)) {
+      miss.push('generation_duration_s（正数素材时长）');
+    }
+    const dialogueRefs = Array.isArray(shot?.dialogue_refs) ? shot.dialogue_refs : [];
+    if (dialogueRefs.length && !isObj(shot?.lip_sync)) miss.push('lip_sync（对白镜头须记录状态）');
+    if (shot?.lip_sync?.status === 'unavailable' && !nonEmpty(shot.lip_sync.notes)) miss.push('lip_sync.notes（能力不可用原因）');
+    if (shot?.lip_sync?.status && !['not_required', 'pending', 'synced', 'unavailable'].includes(shot.lip_sync.status)) miss.push('lip_sync.status 非法');
+    if (genericCopy(shot?.action) || genericCopy(shot?.character_action) || genericCopy(shot?.shot_purpose)) {
+      miss.push(`具体化通用描述「${genericCopy(shot?.action) || genericCopy(shot?.character_action) || genericCopy(shot?.shot_purpose)}」`);
+    }
+    add('PR5', `${label} 叙事动作、机位及时长完整`, miss.length === 0, miss.length ? `缺或无效：${miss.join('、')}` : '');
+
+    const refs = [
+      ...(Array.isArray(shot?.char_refs) ? shot.char_refs.map((ref) => [ref, characterIds, '角色']) : []),
+      ...(Array.isArray(shot?.prop_refs) ? shot.prop_refs.map((ref) => [ref, propIds, '道具']) : []),
+      ...(Array.isArray(shot?.event_refs) ? shot.event_refs.map((ref) => [ref, eventIds, '事件']) : []),
+      ...dialogueRefs.map((ref) => [ref, dialogueIds, '对白']),
+      ...(Array.isArray(shot?.narration_refs) ? shot.narration_refs.map((ref) => [ref, narrationIds, '旁白/独白']) : []),
+    ];
+    const brokenRefs = refs.filter(([ref, ids]) => !ids.has(ref));
+    add('PR6', `${label} 事件与资产引用有效`, eventIds.size > 0 && Array.isArray(shot?.event_refs) && shot.event_refs.length > 0
+      && sceneIds.has(shot?.scene_ref) && brokenRefs.length === 0,
+    eventIds.size === 0 ? '尚无剧情事件' : brokenRefs.length ? `无效引用：${brokenRefs.map(([ref, , type]) => `${type} ${ref}`).join('、')}` : '镜头必须引用有效场景和至少一个剧情事件');
+  }
+
+  const shotsById = new Map(shots.map((shot) => [shot?.shot_id ?? shot?.id, shot]));
+  for (const [index, shot] of shots.entries()) {
+    const id = shot?.shot_id ?? shot?.id;
+    const expectedPrevious = index > 0 ? shots[index - 1]?.shot_id ?? shots[index - 1]?.id : null;
+    const expectedNext = index < shots.length - 1 ? shots[index + 1]?.shot_id ?? shots[index + 1]?.id : null;
+    const linksOk = (shot?.previous_shot ?? null) === expectedPrevious && (shot?.next_shot ?? null) === expectedNext
+      && (!shot?.previous_shot || shotsById.has(shot.previous_shot))
+      && (!shot?.next_shot || shotsById.has(shot.next_shot));
+    add('PR7', `镜头「${id ?? '?'}」前后衔接引用`, linksOk,
+      'previous_shot / next_shot 应指向分镜顺序中的相邻镜头，首尾使用 null');
+  }
+
+  const plan = production.audio_plan;
+  if (isObj(plan)) {
+    const profiles = Array.isArray(plan.voice_profiles) ? plan.voice_profiles : [];
+    const tracks = Array.isArray(plan.tracks) ? plan.tracks : [];
+    const voiceIds = new Set();
+    for (const profile of profiles) {
+      const label = `角色音色「${profile?.character_ref ?? '?'}」`;
+      const miss = required(profile, ['character_ref', 'voice_id', 'voice_description', 'emotion']);
+      if (!Number.isFinite(profile?.speaking_rate) || profile.speaking_rate <= 0) miss.push('speaking_rate');
+      if (!Number.isFinite(profile?.pitch)) miss.push('pitch');
+      if (!isObj(profile?.pronunciation_settings)) miss.push('pronunciation_settings');
+      if (!characterIds.has(profile?.character_ref)) miss.push('character_ref 不存在');
+      if (voiceIds.has(profile?.character_ref)) miss.push('同一角色只能有一份固定音色配置');
+      voiceIds.add(profile?.character_ref);
+      add('PR8', `${label} 固定声音配置`, miss.length === 0, miss.length ? `缺或无效：${miss.join('、')}` : '');
+    }
+    const trackIds = new Set();
+    for (const track of tracks) {
+      const label = `音轨事件「${track?.track_id ?? '?'}」`;
+      const miss = required(track, ['track_id', 'track', 'type', 'asset_ref', 'transition']);
+      if (!AUDIO_TRACKS.includes(track?.track)) miss.push('track（A1-A5）');
+      if (!Number.isFinite(track?.start_time) || track.start_time < 0
+        || !Number.isFinite(track?.end_time) || track.end_time <= track.start_time) miss.push('start_time/end_time');
+      if (!Number.isFinite(track?.volume) || track.volume < 0 || track.volume > 1) miss.push('volume（0-1）');
+      if (!Number.isFinite(track?.fade_in) || track.fade_in < 0
+        || !Number.isFinite(track?.fade_out) || track.fade_out < 0) miss.push('fade_in/fade_out');
+      if (track?.track === 'A5' && track?.ducking !== true) miss.push('BGM ducking（对白期间必须启用）');
+      if (trackIds.has(track?.track_id)) miss.push(`track_id 重复：${track.track_id}`);
+      trackIds.add(track?.track_id);
+      add('PR9', `${label} 时间与混音参数`, miss.length === 0, miss.length ? `缺或无效：${miss.join('、')}` : '');
+    }
+    add('PR10', '音频计划禁止直接混入视频自带 BGM', plan.exclude_video_bgm === true, 'exclude_video_bgm 必须为 true；视频片段自带 BGM 默认静音');
+    add('PR10', '对白期间启用 BGM 自动闪避', plan.mix?.dialogue_ducking === true, 'audio_plan.mix.dialogue_ducking 必须为 true');
+    for (const dialogue of dialogues) {
+      if (nonEmpty(dialogue?.speaker_ref) && characterIds.has(dialogue.speaker_ref)) {
+        add('PR8', `对白「${dialogue.dialogue_id}」使用固定角色音色`,
+          voiceIds.has(dialogue.speaker_ref), voiceIds.has(dialogue.speaker_ref) ? '' : `缺少角色「${dialogue.speaker_ref}」的 voice_profiles 配置`);
+      }
+    }
+  }
+
+  const timeline = production.timeline;
+  if (isObj(timeline)) {
+    add('PR11', '后期视频轨道 V1/V2/V3', VIDEO_TRACKS.every((track) => timeline.video_tracks?.includes(track)),
+      '须配置 V1 主画面、V2 辅助画面、V3 字幕');
+    add('PR11', '后期音频轨道 A1-A5', AUDIO_TRACKS.every((track) => timeline.audio_tracks?.includes(track)),
+      '须配置 A1 对白、A2 旁白、A3 环境音、A4 音效、A5 BGM');
+    add('PR11', '最终成片仅执行一次统一混音', timeline.final_mix_count === 1 && timeline.exclude_video_bgm === true,
+      'final_mix_count 必须为 1，且排除视频自带 BGM');
+  }
+
+  const quality = production.quality_checks;
+  if (isObj(quality)) {
+    for (const domain of QUALITY_DOMAINS) {
+      const items = Array.isArray(quality[domain]) ? quality[domain] : [];
+      add('PR12', `质量检查「${domain}」有可追溯结果`,
+        items.length > 0 && items.every((item) => nonEmpty(item?.scope_ref) && nonEmpty(item?.notes)
+          && ['passed', 'failed', 'needs_regeneration'].includes(item?.status)),
+        items.length === 0 ? '至少记录一项检查，未检查不能标记通过' : '检查项须记录 scope_ref、notes 与有效 status');
+    }
+  }
+
   return gates;
 }
 
@@ -374,7 +593,26 @@ export function initSkeleton(drama = '未命名项目', source = '') {
     source_analysis: { scope: '', chapters_read: 0, total_chapters: null, statistics: {}, notes: '' },
     art_plans: [],
     audio_assets: [],
-    production: { scripts: [], shots: [] },
+    production: {
+      scripts: [],
+      story_events: [],
+      dialogues: [],
+      narration: [],
+      shots: [],
+      audio_plan: {
+        voice_profiles: [],
+        tracks: [],
+        exclude_video_bgm: true,
+        mix: { dialogue_ducking: true },
+      },
+      timeline: {
+        video_tracks: [...VIDEO_TRACKS],
+        audio_tracks: [...AUDIO_TRACKS],
+        final_mix_count: 1,
+        exclude_video_bgm: true,
+      },
+      quality_checks: { story: [], visual: [], audio: [] },
+    },
     pipeline: defaultPipeline(),
   };
 }
