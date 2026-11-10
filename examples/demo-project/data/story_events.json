@@ -8,7 +8,9 @@
       "location_ids": ["scene-001"],
       "prop_ids": ["prop-001"],
       "source_refs": ["chapter-001"],
-      "provenance": "SOURCE_FACT"
+      "evidence_refs": ["evidence-001"],
+      "provenance": "SOURCE_FACT",
+      "importance": "IMPORTANT"
     },
     {
       "id": "event-002",
@@ -18,7 +20,9 @@
       "location_ids": ["scene-001"],
       "prop_ids": ["prop-001"],
       "source_refs": ["chapter-001"],
-      "provenance": "SOURCE_FACT"
+      "evidence_refs": ["evidence-002"],
+      "provenance": "SOURCE_FACT",
+      "importance": "IMPORTANT"
     }
   ]
 }

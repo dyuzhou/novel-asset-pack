@@ -13,13 +13,13 @@
 
 ## 安装与使用
 
-将仓库作为 Agent Skill 安装，或让兼容 Agent 读取根目录 `SKILL.md`。需要 Node.js 18+，无 npm 运行依赖。
+将仓库作为 Agent Skill 安装，或让兼容 Agent 读取根目录 `SKILL.md`。需要 Node.js 18+ 和 npm；首次使用前在 Skill 仓库运行 `npm ci`，安装 AJV Draft 2020-12 Schema 校验依赖。
 
 ```bash
 node scripts/manhua.mjs init "示例作品" /path/to/AI-Manhua
 node scripts/manhua.mjs validate /path/to/AI-Manhua
 node scripts/manhua.mjs report /path/to/AI-Manhua
-node scripts/selftest.mjs
+npm test
 ```
 
 制作目录与本 Skill 仓库分开。虚构样例位于 [`examples/demo-project`](examples/demo-project/)，配套静态审核页为 [`review.html`](examples/demo-project/reports/review.html)；详细运行说明见 [`docs/usage.md`](docs/usage.md)，阶段流程见 [`references/workflow.md`](references/workflow.md)。
@@ -29,13 +29,17 @@ node scripts/selftest.mjs
 ```text
 SKILL.md
 scripts/manhua.mjs             # 初始化、质量门、阶段状态机、静态审核报告
-scripts/selftest.mjs           # 无模型、无媒体生成的确定性自测
+scripts/prompt-builder.mjs     # 模型无关的分层提示词组装
+scripts/selftest.mjs           # 无模型 API 的确定性自测，使用真实/合成有效媒体样本
 references/                    # 按需读取的阶段方法与数据约定
 schemas/                       # JSON Schema
 templates/                     # 空项目数据模板
 examples/demo-project/         # 虚构原著的端到端结构样例
+references/visual-failure-cases.md # 美术一致性错误案例与验收清单
 docs/                          # 安装、使用、兼容性与来源说明
 ```
+
+媒体文件优先使用 FFprobe 验证真实流、分辨率和时长；未安装 FFprobe 时只做格式基础检查，并将验证等级明确记录为 `BASIC`。完整数据结构见 [`references/schema.md`](references/schema.md) 和 [`references/data-contracts.md`](references/data-contracts.md)。
 
 ## 参考方法与许可证
 

@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Cross-chapter continuity state",
+  "type": "object",
+  "required": ["chapters"],
+  "properties": {
+    "chapters": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "chapter_id", "read_status", "confirmed_event_ids", "character_states", "unresolved_questions"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "chapter_id": { "type": "string", "minLength": 1 },
+          "read_status": { "enum": ["READ", "UNREAD"] },
+          "inherited_from_chapter_id": { "type": ["string", "null"] },
+          "confirmed_event_ids": { "type": "array", "items": { "type": "string" } },
+          "character_states": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["character_id", "appearance_period", "costume_variant", "injuries", "held_prop_ids"],
+              "properties": {
+                "character_id": { "type": "string", "minLength": 1 },
+                "appearance_period": { "type": "string", "minLength": 1 },
+                "costume_variant": { "type": "string", "minLength": 1 },
+                "injuries": { "type": "array", "items": { "type": "string" } },
+                "held_prop_ids": { "type": "array", "items": { "type": "string" } },
+                "current_scene_id": { "type": ["string", "null"] }
+              },
+              "additionalProperties": true
+            }
+          },
+          "unresolved_questions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["id", "question", "status"],
+              "properties": {
+                "id": { "type": "string", "minLength": 1 },
+                "question": { "type": "string", "minLength": 1 },
+                "status": { "enum": ["OPEN", "RESOLVED"] }
+              },
+              "additionalProperties": true
+            }
+          }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

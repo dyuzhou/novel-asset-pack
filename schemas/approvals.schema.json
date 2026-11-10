@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Phase approvals",
+  "type": "object",
+  "required": ["approvals"],
+  "properties": {
+    "approvals": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "phase_id", "decision", "decided_by", "decided_at", "snapshot_sha256"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "phase_id": { "type": "string", "minLength": 1 },
+          "decision": { "enum": ["APPROVED", "REJECTED", "SKIPPED"] },
+          "decided_by": { "type": "string", "minLength": 1 },
+          "decided_at": { "type": "string", "format": "date-time" },
+          "snapshot_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

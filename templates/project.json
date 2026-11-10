@@ -10,7 +10,10 @@
   "world_bible": "world/world_bible.md",
   "data_files": {
     "source_index": "data/source_index.json",
+    "continuity": "data/continuity.json",
+    "source_evidence": "data/source_evidence.json",
     "story_events": "data/story_events.json",
+    "event_beats": "data/event_beats.json",
     "characters": "data/characters.json",
     "factions": "data/factions.json",
     "scenes": "data/scenes.json",

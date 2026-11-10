@@ -1,0 +1,124 @@
+{
+  "beats": [
+    {
+      "id": "beat-001",
+      "event_id": "event-001",
+      "beat_type": "CAUSE",
+      "text": "阿禾收船时在河边看见漂来的纸灯。",
+      "evidence_refs": ["evidence-001"],
+      "screenplay_scene_ids": ["screenplay-001"],
+      "screenplay_segment_ids": ["segment-001"],
+      "shot_ids": []
+    },
+    {
+      "id": "beat-002",
+      "event_id": "event-001",
+      "beat_type": "PROCESS",
+      "text": "阿禾把纸灯从河边捞上岸。",
+      "evidence_refs": ["evidence-001"],
+      "screenplay_scene_ids": ["screenplay-001"],
+      "screenplay_segment_ids": ["segment-001"],
+      "shot_ids": []
+    },
+    {
+      "id": "beat-003",
+      "event_id": "event-001",
+      "beat_type": "KEY_ACTION",
+      "text": "阿禾捞起无火发光的纸灯，并认出父亲失踪那年留下的渡口记号。",
+      "evidence_refs": ["evidence-001"],
+      "screenplay_scene_ids": ["screenplay-001"],
+      "screenplay_segment_ids": ["segment-001", "segment-002"],
+      "shot_ids": []
+    },
+    {
+      "id": "beat-004",
+      "event_id": "event-001",
+      "beat_type": "REACTION",
+      "text": "阿禾认出灯柄上的旧记号。",
+      "evidence_refs": ["evidence-001"],
+      "screenplay_scene_ids": ["screenplay-001"],
+      "screenplay_segment_ids": ["segment-003"],
+      "shot_ids": []
+    },
+    {
+      "id": "beat-005",
+      "event_id": "event-001",
+      "beat_type": "RESULT",
+      "text": "阿禾确认纸灯带有父亲失踪那年才有的渡口记号。",
+      "evidence_refs": ["evidence-001"],
+      "screenplay_scene_ids": ["screenplay-001"],
+      "screenplay_segment_ids": ["segment-003"],
+      "shot_ids": []
+    },
+    {
+      "id": "beat-006",
+      "event_id": "event-001",
+      "beat_type": "CONSEQUENCE",
+      "text": "纸灯成为阿禾追寻父亲线索的关键物件。",
+      "evidence_refs": ["evidence-001"],
+      "screenplay_scene_ids": ["screenplay-001"],
+      "screenplay_segment_ids": ["segment-003"],
+      "shot_ids": []
+    },
+    {
+      "id": "beat-007",
+      "event_id": "event-002",
+      "beat_type": "CAUSE",
+      "text": "夜雾渐浓，阿禾没有点灯，也没有离开。",
+      "evidence_refs": ["evidence-002"],
+      "screenplay_scene_ids": ["screenplay-001"],
+      "screenplay_segment_ids": ["segment-003"],
+      "shot_ids": []
+    },
+    {
+      "id": "beat-008",
+      "event_id": "event-002",
+      "beat_type": "PROCESS",
+      "text": "阿禾将纸灯放在渡船中央。",
+      "evidence_refs": ["evidence-002"],
+      "screenplay_scene_ids": ["screenplay-001"],
+      "screenplay_segment_ids": ["segment-003"],
+      "shot_ids": []
+    },
+    {
+      "id": "beat-009",
+      "event_id": "event-002",
+      "beat_type": "KEY_ACTION",
+      "text": "阿禾把纸灯放在渡船中央并留在渡口等待。",
+      "evidence_refs": ["evidence-002"],
+      "screenplay_scene_ids": ["screenplay-001"],
+      "screenplay_segment_ids": ["segment-003"],
+      "shot_ids": []
+    },
+    {
+      "id": "beat-010",
+      "event_id": "event-002",
+      "beat_type": "REACTION",
+      "text": "阿禾选择继续等待，没有离开渡口。",
+      "evidence_refs": ["evidence-002"],
+      "screenplay_scene_ids": ["screenplay-001"],
+      "screenplay_segment_ids": ["segment-003"],
+      "shot_ids": []
+    },
+    {
+      "id": "beat-011",
+      "event_id": "event-002",
+      "beat_type": "RESULT",
+      "text": "阿禾留在渡船上等待河水带回线索。",
+      "evidence_refs": ["evidence-002"],
+      "screenplay_scene_ids": ["screenplay-001"],
+      "screenplay_segment_ids": ["segment-003"],
+      "shot_ids": []
+    },
+    {
+      "id": "beat-012",
+      "event_id": "event-002",
+      "beat_type": "CONSEQUENCE",
+      "text": "阿禾的等待延续了追寻父亲的悬而未决状态。",
+      "evidence_refs": ["evidence-002"],
+      "screenplay_scene_ids": ["screenplay-001"],
+      "screenplay_segment_ids": ["segment-003"],
+      "shot_ids": []
+    }
+  ]
+}

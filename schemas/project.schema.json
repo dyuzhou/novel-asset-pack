@@ -9,6 +9,7 @@
     "title",
     "source_fidelity",
     "aspect_ratio",
+    "source_files",
     "data_files",
     "phases",
     "current_phase"
@@ -19,7 +20,18 @@
     "title": { "type": "string", "minLength": 1 },
     "created_at": { "type": "string", "format": "date-time" },
     "source_scope": { "type": "string" },
-    "source_files": { "type": "array", "items": { "type": "string" } },
+    "source_files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "sha256"],
+        "properties": {
+          "path": { "type": "string", "minLength": 1 },
+          "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+        },
+        "additionalProperties": true
+      }
+    },
     "source_fidelity": { "const": true },
     "aspect_ratio": { "type": "string", "pattern": "^\\d{1,2}:\\d{1,2}$" },
     "world_bible": { "type": "string" },

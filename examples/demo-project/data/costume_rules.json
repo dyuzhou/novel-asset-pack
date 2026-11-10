@@ -14,7 +14,15 @@
       "insignia": "原文未说明",
       "ornament_level": "原文未说明，待确认",
       "ornament_score": 1,
-      "provenance": "UNKNOWN"
+      "provenance": "UNKNOWN",
+      "material_grade": "UNKNOWN",
+      "craftsmanship_grade": "UNKNOWN",
+      "insignia_grade": "UNKNOWN",
+      "accessory_grade": "UNKNOWN",
+      "garment_formality": "UNKNOWN",
+      "costume_context": "日常服 · 原文未说明，待确认",
+      "exception_reason": "",
+      "source_refs": ["chapter-001"]
     }
   ]
 }

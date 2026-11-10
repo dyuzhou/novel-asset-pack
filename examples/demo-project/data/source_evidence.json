@@ -1,0 +1,26 @@
+{
+  "evidence": [
+    {
+      "source_id": "evidence-001",
+      "chapter_id": "chapter-001",
+      "paragraph_id": "chapter-001:p0002",
+      "start_offset": 8,
+      "end_offset": 76,
+      "evidence_text": "阿禾在旧渡口收船时，看见河边漂来一盏破旧的纸灯。灯里没有火，却映出一圈温暖的光。她把灯捞上岸，认出灯柄上刻着父亲失踪那年才有的渡口记号。",
+      "evidence_hash": "0ccb9ceddf5218e1d49b7043488d63122cd23b35a7c2faf5a49a6e2bf354d651",
+      "source_file": "source/chapter-001.txt",
+      "source_file_hash": "f3ade18912a7353e8946f0ec45e8333acea435b07aef841e301694a9c1e292ef"
+    },
+    {
+      "source_id": "evidence-002",
+      "chapter_id": "chapter-001",
+      "paragraph_id": "chapter-001:p0003",
+      "start_offset": 78,
+      "end_offset": 117,
+      "evidence_text": "夜雾渐浓，阿禾没有点灯，也没有离开。她将纸灯放在渡船中央，等河水把来路带回来。",
+      "evidence_hash": "ea64a6e1e4d8f2fe742613ef7a5cf87a62bd680aca1c6f63e6803da01ac71b48",
+      "source_file": "source/chapter-001.txt",
+      "source_file_hash": "f3ade18912a7353e8946f0ec45e8333acea435b07aef841e301694a9c1e292ef"
+    }
+  ]
+}

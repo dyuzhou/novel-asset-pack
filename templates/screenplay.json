@@ -1,21 +1,3 @@
 {
-  "scenes": [
-    {
-      "id": "scene-001",
-      "chapter_id": "chapter-001",
-      "event_ids": ["event-001"],
-      "scene_id": "location-001",
-      "character_ids": ["character-001"],
-      "time_weather": "",
-      "segments": [
-        {
-          "id": "segment-001",
-          "type": "NARRATION",
-          "speaker_id": null,
-          "text": "",
-          "duration_seconds": 0
-        }
-      ]
-    }
-  ]
+  "scenes": []
 }

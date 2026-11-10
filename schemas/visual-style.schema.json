@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Visual style",
+  "type": "object",
+  "required": ["visual_style", "aspect_ratio", "color_palette", "lighting_rules", "era_constraints", "quality_constraints", "negative_constraints"],
+  "properties": {
+    "visual_style": { "type": "string" },
+    "aspect_ratio": { "type": "string", "pattern": "^\\d{1,2}:\\d{1,2}$" },
+    "color_palette": { "type": "array", "items": { "type": "string" } },
+    "lighting_rules": { "type": "array", "items": { "type": "string" } },
+    "era_constraints": {
+      "type": "object",
+      "required": ["allowed_elements", "forbidden_elements"],
+      "properties": {
+        "allowed_elements": { "type": "array", "items": { "type": "string" } },
+        "forbidden_elements": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": true
+    },
+    "quality_constraints": { "type": "array", "items": { "type": "string" } },
+    "negative_constraints": { "type": "array", "items": { "type": "string" } }
+  },
+  "additionalProperties": true
+}

@@ -12,7 +12,8 @@
         {
           "text": "场景位于旧渡口。",
           "provenance": "SOURCE_FACT",
-          "source_refs": ["chapter-001"]
+          "source_refs": ["chapter-001"],
+          "evidence_refs": ["evidence-001"]
         }
       ]
     }

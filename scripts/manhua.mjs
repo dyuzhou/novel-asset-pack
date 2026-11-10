@@ -2,7 +2,12 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import zlib from 'node:zlib';
+import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import Ajv2020 from 'ajv/dist/2020.js';
+import addFormats from 'ajv-formats';
+import { buildPrompt } from './prompt-builder.mjs';
 
 export const PHASES = [
   ['01-source-analysis', '原著解析与世界观建立'],
@@ -22,7 +27,10 @@ export const PHASE_STATUSES = [
 
 const DATA_FILES = {
   source_index: 'data/source_index.json',
+  continuity: 'data/continuity.json',
+  source_evidence: 'data/source_evidence.json',
   story_events: 'data/story_events.json',
+  event_beats: 'data/event_beats.json',
   characters: 'data/characters.json',
   factions: 'data/factions.json',
   scenes: 'data/scenes.json',
@@ -42,7 +50,10 @@ const DATA_FILES = {
 
 const COLLECTIONS = {
   source_index: 'chapters',
+  continuity: 'chapters',
+  source_evidence: 'evidence',
   story_events: 'events',
+  event_beats: 'beats',
   characters: 'characters',
   factions: 'factions',
   scenes: 'scenes',
@@ -58,11 +69,11 @@ const COLLECTIONS = {
 };
 
 const STAGE_SNAPSHOT_FILES = {
-  '01-source-analysis': ['source_index', 'story_events', 'characters', 'factions', 'scenes', 'props', 'timeline'],
+  '01-source-analysis': ['source_index', 'continuity', 'source_evidence', 'story_events', 'characters', 'factions', 'scenes', 'props', 'timeline'],
   '02-art-direction': ['visual_style', 'costume_rules'],
   '03-master-assets': ['asset_registry'],
   '04-derived-assets': ['asset_registry'],
-  '05-screenplay': ['screenplay', 'story_coverage'],
+  '05-screenplay': ['continuity', 'screenplay', 'story_coverage', 'event_beats'],
   '06-storyboard': ['storyboard'],
   '07-video': ['production_tasks'],
   '08-audio-qc': ['audio_timeline', 'production_tasks', 'quality_reports'],
@@ -80,6 +91,37 @@ const SEGMENT_TYPES = new Set(['DIALOGUE', 'NARRATION', 'INNER_MONOLOGUE', 'ACTI
 const TASK_STATUSES = new Set(['QUEUED', 'RUNNING', 'FAILED', 'COMPLETED', 'CANCELLED', 'STALE']);
 const APPROVAL_STATUSES = new Set(['PENDING', 'APPROVED', 'REJECTED', 'CHANGES_REQUESTED', 'REGENERATE']);
 const FACT_PROVENANCE = new Set(['SOURCE_FACT', 'INFERENCE', 'ART_DECISION', 'UNKNOWN']);
+const SCHEMA_FILES = {
+  project: 'project.schema.json',
+  source_index: 'source-index.schema.json',
+  continuity: 'continuity.schema.json',
+  source_evidence: 'source-evidence.schema.json',
+  story_events: 'story-events.schema.json',
+  event_beats: 'event-beats.schema.json',
+  characters: 'character.schema.json',
+  factions: 'factions.schema.json',
+  scenes: 'scene.schema.json',
+  props: 'props.schema.json',
+  timeline: 'timeline.schema.json',
+  asset_registry: 'asset.schema.json',
+  visual_style: 'visual-style.schema.json',
+  costume_rules: 'costume-rules.schema.json',
+  screenplay: 'screenplay.schema.json',
+  story_coverage: 'story-coverage.schema.json',
+  storyboard: 'storyboard.schema.json',
+  production_tasks: 'production-tasks.schema.json',
+  audio_timeline: 'audio-timeline.schema.json',
+  quality_reports: 'quality-reports.schema.json',
+  approvals: 'approvals.schema.json',
+};
+const schemaValidator = new Ajv2020({ allErrors: true, strict: false });
+addFormats(schemaValidator);
+const schemaChecks = new Map(
+  Object.entries(SCHEMA_FILES).map(([key, file]) => [
+    key,
+    schemaValidator.compile(JSON.parse(fs.readFileSync(new URL(`../schemas/${file}`, import.meta.url), 'utf8'))),
+  ]),
+);
 
 const isNonEmpty = (value) => typeof value === 'string' && value.trim().length > 0;
 const asArray = (value) => Array.isArray(value) ? value : [];
@@ -87,9 +129,11 @@ const now = () => new Date().toISOString();
 const json = (value) => `${JSON.stringify(value, null, 2)}\n`;
 
 function safePath(root, relativePath) {
-  if (!isNonEmpty(relativePath) || path.isAbsolute(relativePath)) return null;
+  if (!isNonEmpty(relativePath)) return null;
+  const portablePath = relativePath.replace(/\\/g, '/');
+  if (path.isAbsolute(portablePath) || /^[A-Za-z]:\//.test(portablePath) || portablePath.startsWith('//')) return null;
   const resolvedRoot = path.resolve(root);
-  const resolved = path.resolve(resolvedRoot, relativePath);
+  const resolved = path.resolve(resolvedRoot, ...portablePath.split('/'));
   const relative = path.relative(resolvedRoot, resolved);
   if (relative.startsWith('..') || path.isAbsolute(relative)) return null;
   if (!fs.existsSync(resolvedRoot)) return resolved;
@@ -106,6 +150,9 @@ function safePath(root, relativePath) {
   }
   return resolved;
 }
+
+const toPosixPath = (value) => typeof value === 'string' ? value.replace(/\\/g, '/') : value;
+const sha256 = (value) => crypto.createHash('sha256').update(value).digest('hex');
 
 function writeJson(file, value) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -130,7 +177,10 @@ function slug(value) {
 function emptyData() {
   return {
     source_index: { chapters: [] },
+    continuity: { chapters: [] },
+    source_evidence: { evidence: [] },
     story_events: { events: [] },
+    event_beats: { beats: [] },
     characters: { characters: [] },
     factions: { factions: [] },
     scenes: { scenes: [] },
@@ -208,6 +258,15 @@ export function loadProject(directory) {
   const projectFile = path.join(root, 'project.json');
   if (!fs.existsSync(projectFile)) throw new Error(`找不到项目文件：${projectFile}`);
   const project = readJson(projectFile);
+  if (!Array.isArray(project.source_files)) {
+    throw new Error('project.source_files 必须是统一登记的来源文件数组。');
+  }
+  for (const [index, entry] of project.source_files.entries()) {
+    if (!(typeof entry === 'string' && isNonEmpty(entry)) &&
+        !(entry && typeof entry === 'object' && isNonEmpty(entry.path))) {
+      throw new Error(`project.source_files[${index}] 缺少有效 path。`);
+    }
+  }
   const data = {};
   const files = {};
   for (const [key, fallback] of Object.entries(DATA_FILES)) {
@@ -220,7 +279,84 @@ export function loadProject(directory) {
   }
   const worldBible = safePath(root, project.world_bible);
   if (!worldBible) throw new Error(`世界观文件路径无效：${project.world_bible}`);
-  return { root, project, data, files, worldBible };
+  const context = { root, project, data, files, worldBible };
+  let projectChanged = false;
+  const changedDataFiles = new Set();
+  for (const [key, relative] of Object.entries(project.data_files ?? {})) {
+    const portable = toPosixPath(relative);
+    if (portable !== relative) {
+      project.data_files[key] = portable;
+      projectChanged = true;
+    }
+  }
+  if (toPosixPath(project.world_bible) !== project.world_bible) {
+    project.world_bible = toPosixPath(project.world_bible);
+    projectChanged = true;
+  }
+  const sourceRecords = new Map(asArray(project.source_files).map((entry) => {
+    const record = typeof entry === 'string' ? { path: entry } : entry;
+    if (typeof entry === 'string') projectChanged = true;
+    return [toPosixPath(record?.path), record];
+  }).filter(([file]) => isNonEmpty(file)));
+  for (const chapter of list(data, 'source_index')) {
+    if (!isNonEmpty(chapter.source_file)) continue;
+    const portableChapterPath = toPosixPath(chapter.source_file);
+    if (portableChapterPath !== chapter.source_file) projectChanged = true;
+    chapter.source_file = portableChapterPath;
+    const file = safePath(root, chapter.source_file);
+    const currentHash = file && fs.existsSync(file) && fs.statSync(file).isFile()
+      ? sha256(fs.readFileSync(file))
+      : null;
+    const record = sourceRecords.get(chapter.source_file) ?? { path: chapter.source_file };
+    if (!sourceRecords.has(chapter.source_file)) projectChanged = true;
+    if (!record.sha256 && currentHash) {
+      record.sha256 = currentHash;
+      projectChanged = true;
+    }
+    if (!chapter.source_file_hash && record.sha256) {
+      chapter.source_file_hash = record.sha256;
+      projectChanged = true;
+    }
+    sourceRecords.set(chapter.source_file, record);
+  }
+  for (const record of sourceRecords.values()) {
+    const file = safePath(root, record.path);
+    if (!record.sha256 && file && fs.existsSync(file) && fs.statSync(file).isFile()) {
+      record.sha256 = sha256(fs.readFileSync(file));
+      projectChanged = true;
+    }
+  }
+  project.source_files = [...sourceRecords.values()];
+  for (const record of project.source_files) {
+    const portable = toPosixPath(record.path);
+    if (portable !== record.path) {
+      record.path = portable;
+      projectChanged = true;
+    }
+  }
+  for (const collectionName of ['asset_registry', 'storyboard', 'production_tasks', 'audio_timeline', 'source_evidence']) {
+    const field = collectionName === 'storyboard' ? 'image_file'
+      : collectionName === 'production_tasks' ? 'output_file'
+        : collectionName === 'audio_timeline' ? 'file'
+          : collectionName === 'source_evidence' ? 'source_file' : 'file';
+    const collection = list(data, collectionName);
+    for (const item of collection) {
+      if (typeof item[field] === 'string' && item[field] !== toPosixPath(item[field])) {
+        item[field] = toPosixPath(item[field]);
+        changedDataFiles.add(collectionName);
+      }
+    }
+  }
+  for (const record of project.source_files) {
+    const chapter = list(data, 'source_index').find((entry) => entry.source_file === record.path);
+    if (chapter && !chapter.source_file_hash && record.sha256) chapter.source_file_hash = record.sha256;
+  }
+  if (projectChanged) {
+    writeJson(projectFile, project);
+    writeJson(files.source_index, data.source_index);
+  }
+  for (const key of changedDataFiles) writeJson(files[key], data[key]);
+  return context;
 }
 
 function issue(ruleId, file, objectId, message, suggestion, severity = 'ERROR') {
@@ -248,39 +384,100 @@ function assetVersions(data) {
   return new Map(list(data, 'asset_registry').map((asset) => [asset?.version_id, asset]).filter(([id]) => isNonEmpty(id)));
 }
 
-function isImageFile(file) {
-  if (file.length < 12) return false;
-  return (
-    (file.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) ||
-    (file[0] === 0xff && file[1] === 0xd8 && file[file.length - 2] === 0xff && file[file.length - 1] === 0xd9) ||
-    (file.toString('ascii', 0, 4) === 'RIFF' && file.toString('ascii', 8, 12) === 'WEBP')
-  );
+function pngInfo(file) {
+  const signature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+  if (!file.subarray(0, 8).equals(signature)) return null;
+  const crc32 = (buffer) => {
+    let crc = 0xffffffff;
+    for (const byte of buffer) {
+      crc ^= byte;
+      for (let bit = 0; bit < 8; bit++) crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0);
+    }
+    return (crc ^ 0xffffffff) >>> 0;
+  };
+  let offset = 8;
+  let header;
+  let ended = false;
+  const imageData = [];
+  while (offset + 12 <= file.length) {
+    const length = file.readUInt32BE(offset);
+    const end = offset + 12 + length;
+    if (end > file.length) return null;
+    const type = file.toString('ascii', offset + 4, offset + 8);
+    const data = file.subarray(offset + 8, offset + 8 + length);
+    if (crc32(file.subarray(offset + 4, offset + 8 + length)) !== file.readUInt32BE(offset + 8 + length)) return null;
+    if (type === 'IHDR') {
+      if (header || length !== 13) return null;
+      header = {
+        width: data.readUInt32BE(0),
+        height: data.readUInt32BE(4),
+        bitDepth: data[8],
+        colorType: data[9],
+        interlace: data[12],
+      };
+    } else if (type === 'IDAT') imageData.push(data);
+    else if (type === 'IEND') {
+      if (length !== 0) return null;
+      ended = true;
+      offset = end;
+      break;
+    }
+    offset = end;
+  }
+  if (!header?.width || !header.height || !imageData.length || !ended || offset !== file.length) return null;
+  try {
+    const decoded = zlib.inflateSync(Buffer.concat(imageData));
+    if (!decoded.length) return null;
+    if (!header.interlace) {
+      const channels = ({ 0: 1, 2: 3, 3: 1, 4: 2, 6: 4 })[header.colorType];
+      if (!channels || ![1, 2, 4, 8, 16].includes(header.bitDepth)) return null;
+      const rowBytes = Math.ceil(header.width * channels * header.bitDepth / 8) + 1;
+      if (decoded.length !== rowBytes * header.height) return null;
+    }
+    return { width: header.width, height: header.height };
+  } catch {
+    return null;
+  }
 }
 
-function imageDimensions(file) {
-  if (file.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) && file.length >= 24) {
-    return { width: file.readUInt32BE(16), height: file.readUInt32BE(20) };
-  }
+function jpegDimensions(file) {
   if (file[0] === 0xff && file[1] === 0xd8) {
     let offset = 2;
+    let dimensions = null;
+    let hasScan = false;
     while (offset + 8 < file.length) {
       if (file[offset] !== 0xff) {
-        offset++;
-        continue;
+        if (hasScan) {
+          offset++;
+          continue;
+        }
+        return null;
       }
       while (file[offset] === 0xff) offset++;
       const marker = file[offset++];
+      if (marker === 0xda) {
+        hasScan = true;
+        break;
+      }
       if (marker === 0xd8 || marker === 0xd9 || marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) continue;
       if (offset + 2 > file.length) break;
       const length = file.readUInt16BE(offset);
       if (length < 2 || offset + length > file.length) break;
       if ([0xc0, 0xc1, 0xc2, 0xc3, 0xc5, 0xc6, 0xc7, 0xc9, 0xca, 0xcb, 0xcd, 0xce, 0xcf].includes(marker)) {
-        return { height: file.readUInt16BE(offset + 3), width: file.readUInt16BE(offset + 5) };
+        dimensions = { height: file.readUInt16BE(offset + 3), width: file.readUInt16BE(offset + 5) };
       }
       offset += length;
     }
+    return dimensions && hasScan && file[file.length - 2] === 0xff && file[file.length - 1] === 0xd9
+      ? dimensions
+      : null;
   }
-  if (file.toString('ascii', 0, 4) === 'RIFF' && file.toString('ascii', 8, 12) === 'WEBP') {
+  return null;
+}
+
+function webpDimensions(file) {
+  if (file.length >= 30 && file.toString('ascii', 0, 4) === 'RIFF' &&
+      file.readUInt32LE(4) + 8 === file.length && file.toString('ascii', 8, 12) === 'WEBP') {
     const chunk = file.toString('ascii', 12, 16);
     if (chunk === 'VP8X' && file.length >= 30) {
       return {
@@ -298,6 +495,182 @@ function imageDimensions(file) {
   return null;
 }
 
+function imageDimensions(file) {
+  return pngInfo(file) ?? jpegDimensions(file) ?? webpDimensions(file);
+}
+
+function isImageFile(file) {
+  return Boolean(imageDimensions(file));
+}
+
+function boxes(buffer, start = 0, end = buffer.length) {
+  const found = [];
+  let offset = start;
+  while (offset + 8 <= end) {
+    let size = buffer.readUInt32BE(offset);
+    const type = buffer.toString('ascii', offset + 4, offset + 8);
+    let headerSize = 8;
+    if (size === 1) {
+      if (offset + 16 > end) break;
+      const extendedSize = buffer.readBigUInt64BE(offset + 8);
+      if (extendedSize > BigInt(Number.MAX_SAFE_INTEGER)) break;
+      size = Number(extendedSize);
+      headerSize = 16;
+    } else if (size === 0) {
+      size = end - offset;
+    }
+    if (size < headerSize || offset + size > end) break;
+    found.push({ type, start: offset, end: offset + size, payload: offset + headerSize });
+    offset += size;
+  }
+  return found;
+}
+
+function probeBasicMp4(buffer) {
+  const rootBoxes = boxes(buffer);
+  const moov = rootBoxes.find((box) => box.type === 'moov');
+  const hasFtyp = rootBoxes.some((box) => box.type === 'ftyp');
+  const hasMdat = rootBoxes.some((box) => box.type === 'mdat' && box.end - box.payload > 0);
+  if (!hasFtyp || !moov || !hasMdat) return { valid: false, reason: 'MP4 缺少有效 ftyp、moov 或非空 mdat 容器。' };
+  const tracks = [];
+  for (const track of boxes(buffer, moov.payload, moov.end).filter((box) => box.type === 'trak')) {
+    const trackBoxes = boxes(buffer, track.payload, track.end);
+    const tkhd = trackBoxes.find((box) => box.type === 'tkhd');
+    const mdia = trackBoxes.find((box) => box.type === 'mdia');
+    if (!mdia) continue;
+    const mediaBoxes = boxes(buffer, mdia.payload, mdia.end);
+    const hdlr = mediaBoxes.find((box) => box.type === 'hdlr');
+    const mdhd = mediaBoxes.find((box) => box.type === 'mdhd');
+    const minf = mediaBoxes.find((box) => box.type === 'minf');
+    const stbl = minf && boxes(buffer, minf.payload, minf.end).find((box) => box.type === 'stbl');
+    const stsd = stbl && boxes(buffer, stbl.payload, stbl.end).find((box) => box.type === 'stsd');
+    const stsz = stbl && boxes(buffer, stbl.payload, stbl.end).find((box) => box.type === 'stsz');
+    if (!hdlr || hdlr.payload + 12 > hdlr.end) continue;
+    const type = buffer.toString('ascii', hdlr.payload + 8, hdlr.payload + 12) === 'vide' ? 'video'
+      : buffer.toString('ascii', hdlr.payload + 8, hdlr.payload + 12) === 'soun' ? 'audio' : null;
+    if (!type) continue;
+    const version = mdhd ? buffer[mdhd.payload] : 0;
+    const timescaleOffset = mdhd ? mdhd.payload + (version === 1 ? 20 : 12) : 0;
+    const durationOffset = mdhd ? mdhd.payload + (version === 1 ? 24 : 16) : 0;
+    const timescale = mdhd && timescaleOffset + 4 <= mdhd.end ? buffer.readUInt32BE(timescaleOffset) : 0;
+    const durationUnits = !mdhd ? 0 : version === 1 && durationOffset + 8 <= mdhd.end
+      ? Number(buffer.readBigUInt64BE(durationOffset))
+      : durationOffset + 4 <= mdhd.end ? buffer.readUInt32BE(durationOffset) : 0;
+    const sampleCount = stsz && stsz.payload + 12 <= stsz.end ? buffer.readUInt32BE(stsz.payload + 8) : 0;
+    const codec = stsd && stsd.payload + 16 <= stsd.end
+      ? buffer.toString('ascii', stsd.payload + 12, stsd.payload + 16)
+      : '';
+    tracks.push({
+      codec_name: codec,
+      codec_type: type,
+      duration: timescale ? durationUnits / timescale : 0,
+      sample_count: sampleCount,
+      width: type === 'video' && tkhd?.end >= tkhd.start + 8
+        ? buffer.readUInt32BE(tkhd.end - 8) >>> 16
+        : undefined,
+      height: type === 'video' && tkhd?.end >= tkhd.start + 4
+        ? buffer.readUInt32BE(tkhd.end - 4) >>> 16
+        : undefined,
+    });
+  }
+  const video = tracks.find((track) => track.codec_type === 'video');
+  if (!video || !video.codec_name || !video.sample_count || !video.width || !video.height || !(video.duration > 0)) {
+    return { valid: false, reason: 'MP4 容器中没有可验证的非空视频流、分辨率或正时长。' };
+  }
+  return { valid: true, streams: tracks, duration: Math.max(...tracks.map((track) => track.duration)) };
+}
+
+function probeBasicWav(buffer) {
+  if (buffer.length < 44 || buffer.toString('ascii', 0, 4) !== 'RIFF' || buffer.toString('ascii', 8, 12) !== 'WAVE') {
+    return { valid: false, reason: 'WAV 缺少完整 RIFF/WAVE 头。' };
+  }
+  let offset = 12;
+  let format = null;
+  let dataSize = 0;
+  while (offset + 8 <= buffer.length) {
+    const chunk = buffer.toString('ascii', offset, offset + 4);
+    const size = buffer.readUInt32LE(offset + 4);
+    const payload = offset + 8;
+    if (payload + size > buffer.length) return { valid: false, reason: 'WAV chunk 长度超出文件。' };
+    if (chunk === 'fmt ' && size >= 16) {
+      format = {
+        codec_name: `pcm_${buffer.readUInt16LE(payload)}`,
+        channels: buffer.readUInt16LE(payload + 2),
+        sample_rate: buffer.readUInt32LE(payload + 4),
+        byte_rate: buffer.readUInt32LE(payload + 8),
+      };
+    } else if (chunk === 'data') dataSize = size;
+    offset = payload + size + (size % 2);
+  }
+  if (!format || !format.channels || !format.sample_rate || !format.byte_rate || !dataSize) {
+    return { valid: false, reason: 'WAV 缺少有效 fmt 或非空 data 音频流。' };
+  }
+  return { valid: true, streams: [{ ...format, codec_type: 'audio' }], duration: dataSize / format.byte_rate };
+}
+
+function probeBasicMp3(buffer) {
+  let offset = buffer.toString('ascii', 0, 3) === 'ID3' && buffer.length >= 10
+    ? 10 + ((buffer[6] & 0x7f) << 21) + ((buffer[7] & 0x7f) << 14) + ((buffer[8] & 0x7f) << 7) + (buffer[9] & 0x7f)
+    : 0;
+  for (; offset + 4 <= buffer.length; offset++) {
+    const header = buffer.readUInt32BE(offset);
+    const bitrateIndex = (header >>> 12) & 0xf;
+    const sampleRateIndex = (header >>> 10) & 0x3;
+    if ((header >>> 21) === 0x7ff && bitrateIndex > 0 && bitrateIndex < 15 && sampleRateIndex < 3) {
+      const version = (header >>> 19) & 0x3;
+      const bitrateTable = version === 3
+        ? [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320]
+        : [0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160];
+      const bitrate = bitrateTable[bitrateIndex] * 1000;
+      return {
+        valid: true,
+        streams: [{ codec_name: 'mp3', codec_type: 'audio' }],
+        duration: (buffer.length - offset) * 8 / bitrate,
+      };
+    }
+  }
+  return { valid: false, reason: 'MP3 中没有可识别的有效 MPEG 音频帧。' };
+}
+
+function probeMediaFile(file, mediaType) {
+  const result = spawnSync('ffprobe', [
+    '-v', 'error', '-show_entries',
+    'stream=codec_type,codec_name,width,height,sample_rate,channels:format=duration',
+    '-of', 'json', file,
+  ], { encoding: 'utf8', windowsHide: true });
+  if (!result.error || result.error.code !== 'ENOENT') {
+    if (result.status !== 0) {
+      return { valid: false, level: 'FFPROBE', reason: result.stderr.trim() || 'FFprobe 无法读取媒体文件。' };
+    }
+    try {
+      const metadata = JSON.parse(result.stdout);
+      const streams = asArray(metadata.streams);
+      const formatDuration = Number(metadata.format?.duration);
+      const requiredStream = mediaType === 'VIDEO' ? 'video' : 'audio';
+      const stream = streams.find((entry) => entry.codec_type === requiredStream);
+      if (!stream) return { valid: false, level: 'FFPROBE', reason: `媒体中缺少 ${requiredStream} 流。` };
+      return {
+        valid: Number.isFinite(formatDuration) && formatDuration > 0,
+        level: 'FFPROBE',
+        reason: Number.isFinite(formatDuration) && formatDuration > 0 ? '' : '媒体时长不是正数。',
+        streams,
+        duration: formatDuration,
+      };
+    } catch (error) {
+      return { valid: false, level: 'FFPROBE', reason: `FFprobe 元数据无法解析：${error.message}` };
+    }
+  }
+
+  const buffer = fs.readFileSync(file);
+  const extension = path.extname(file).toLowerCase();
+  const basic = extension === '.mp4' || extension === '.m4v' || extension === '.mov'
+    ? probeBasicMp4(buffer)
+    : extension === '.wav' ? probeBasicWav(buffer)
+      : extension === '.mp3' ? probeBasicMp3(buffer)
+        : { valid: false, reason: `不支持的 ${mediaType} 文件扩展名：${extension || '无扩展名'}。` };
+  return { ...basic, level: 'BASIC' };
+}
+
 function aspectRatio(dimensions) {
   if (!dimensions?.width || !dimensions?.height) return null;
   const gcd = (a, b) => b ? gcd(b, a % b) : a;
@@ -310,7 +683,7 @@ function checkCollectionIds(data) {
   const seen = new Map();
   for (const key of Object.keys(COLLECTIONS)) {
     for (const item of list(data, key)) {
-      const id = item?.id;
+      const id = key === 'source_evidence' ? item?.source_id : item?.id;
       if (!isNonEmpty(id)) {
         issues.push(issue('DATA-ID-REQUIRED', DATA_FILES[key], null, '记录缺少非空稳定 id。', '为每条记录分配稳定且唯一的 id。'));
       } else if (seen.has(id)) {
@@ -354,6 +727,124 @@ function checkCollectionIds(data) {
   return issues;
 }
 
+export function validateSchemas(context) {
+  const issues = [];
+  const entries = [['project', context.project, 'project.json']];
+  for (const [key, validator] of schemaChecks) {
+    if (key === 'project') continue;
+    entries.push([key, context.data[key], DATA_FILES[key] ?? `data/${key}.json`]);
+  }
+  for (const [key, value, file] of entries) {
+    const validator = schemaChecks.get(key);
+    if (!validator(value)) {
+      for (const error of validator.errors ?? []) {
+        issues.push(issue(
+          'SCHEMA-VALIDATION',
+          file,
+          error.instancePath || '/',
+          `${error.instancePath || '/'} ${error.message ?? 'Schema validation failed'} (${error.keyword}).`,
+          `修正 JSON Schema 错误；路径：${error.instancePath || '/'}；原因：${error.message ?? error.keyword}。`,
+        ));
+      }
+    }
+  }
+  return issues;
+}
+
+function paragraphRanges(text) {
+  const ranges = [];
+  let start = null;
+  let end = 0;
+  let cursor = 0;
+  while (cursor < text.length) {
+    const newline = text.indexOf('\n', cursor);
+    const lineEnd = newline < 0 ? text.length : newline;
+    const contentEnd = lineEnd > cursor && text[lineEnd - 1] === '\r' ? lineEnd - 1 : lineEnd;
+    const line = text.slice(cursor, contentEnd);
+    if (line.trim()) {
+      if (start === null) start = cursor + line.length - line.trimStart().length;
+      end = cursor + line.trimEnd().length;
+    } else if (start !== null) {
+      ranges.push({ start, end });
+      start = null;
+    }
+    if (newline < 0) break;
+    cursor = newline + 1;
+  }
+  if (start !== null) ranges.push({ start, end });
+  return ranges;
+}
+
+function checkSourceEvidence(context) {
+  const issues = [];
+  const chapters = new Map(list(context.data, 'source_index').map((chapter) => [chapter.id, chapter]));
+  const evidenceById = new Map(list(context.data, 'source_evidence').map((entry) => [entry.source_id, entry]));
+  const contentByFile = new Map();
+  for (const evidence of list(context.data, 'source_evidence')) {
+    const chapter = chapters.get(evidence.chapter_id);
+    const file = safePath(context.root, evidence.source_file);
+    if (!chapter || chapter.source_file !== evidence.source_file || !file || !fs.existsSync(file)) {
+      issues.push(issue('SOURCE-EVIDENCE-LOCATION', DATA_FILES.source_evidence, evidence.source_id, '证据未指向已登记章节的原著文件。', 'source_file 必须与 source_index 中对应章节的原文文件一致。'));
+      continue;
+    }
+    let sourceText = contentByFile.get(evidence.source_file);
+    if (sourceText === undefined) {
+      sourceText = fs.readFileSync(file, 'utf8');
+      contentByFile.set(evidence.source_file, sourceText);
+    }
+    const currentSourceHash = sha256(fs.readFileSync(file));
+    if (evidence.source_file_hash !== currentSourceHash) {
+      issues.push(issue('SOURCE-EVIDENCE-FILE-CHANGED', DATA_FILES.source_evidence, evidence.source_id, '证据对应的原著文件 SHA-256 已变化。', '重新核对摘录和偏移量；保留旧审批记录并更新受影响内容版本。'));
+    }
+    const { start_offset: start, end_offset: end } = evidence;
+    const ranges = paragraphRanges(sourceText);
+    const paragraphIndex = ranges.findIndex((range) => start >= range.start && end <= range.end);
+    const expectedParagraphId = paragraphIndex >= 0 ? `${evidence.chapter_id}:p${String(paragraphIndex + 1).padStart(4, '0')}` : null;
+    const excerpt = Number.isInteger(start) && Number.isInteger(end) ? sourceText.slice(start, end) : '';
+    if (start < 0 || end <= start || !excerpt || excerpt !== evidence.evidence_text ||
+        evidence.evidence_hash !== sha256(evidence.evidence_text) || evidence.paragraph_id !== expectedParagraphId) {
+      issues.push(issue('SOURCE-EVIDENCE-INVALID', DATA_FILES.source_evidence, evidence.source_id, '段落定位、短摘录、偏移量或证据 SHA-256 无法与原文匹配。', '以原文 UTF-16 字符偏移定位段落内短摘录，并重算 evidence_hash。'));
+    }
+  }
+  const records = [
+    ...list(context.data, 'story_events'),
+    ...list(context.data, 'characters'),
+    ...list(context.data, 'factions'),
+    ...list(context.data, 'scenes'),
+    ...list(context.data, 'props'),
+  ];
+  for (const record of records) {
+    for (const claim of [...asArray(record.claims), ...(record.provenance ? [record] : [])]) {
+      const provenance = claim.provenance;
+      if (provenance === 'SOURCE_FACT') {
+        if (!asArray(claim.evidence_refs).length ||
+            claim.evidence_refs.some((id) => !evidenceById.has(id))) {
+          issues.push(issue('FACT-EVIDENCE-REQUIRED', 'data', record.id, 'SOURCE_FACT 必须引用有效段落证据，章节 ID 不足以证明出处。', '为该事实添加 source_evidence 记录并填写 evidence_refs。'));
+        } else if (asArray(claim.source_refs).length && claim.evidence_refs.some((id) =>
+          !asArray(claim.source_refs).includes(evidenceById.get(id)?.chapter_id))) {
+          issues.push(issue('FACT-EVIDENCE-CHAPTER', 'data', record.id, '事实证据所属章节与 source_refs 不一致。', '确保具体证据段落属于该事实所声明的原著章节。'));
+        }
+      } else if (provenance === 'INFERENCE' && !isNonEmpty(claim.basis)) {
+        issues.push(issue('FACT-INFERENCE-BASIS', 'data', record.id, 'INFERENCE 必须记录推断依据，不能写成原著事实。', '填写依据和不确定性；如无法判断则标记 UNKNOWN。'));
+      } else if (provenance === 'ART_DECISION' && !isNonEmpty(claim.reason)) {
+        issues.push(issue('FACT-ART-DECISION-REASON', 'data', record.id, 'ART_DECISION 必须记录美术补充理由。', '填写美术决策理由并等待用户确认。'));
+      } else if (provenance === 'UNKNOWN' && !isNonEmpty(claim.note)) {
+        issues.push(issue('FACT-UNKNOWN-EXPLICIT', 'data', record.id, 'UNKNOWN 必须明确说明未知内容。', '在 note 中说明原著未说明或尚待核实。'));
+      }
+    }
+  }
+  for (const event of list(context.data, 'story_events')) {
+    if (event.provenance === 'SOURCE_FACT' &&
+        (!asArray(event.evidence_refs).length || event.evidence_refs.some((id) => !evidenceById.has(id)))) {
+      issues.push(issue('EVENT-EVIDENCE-REQUIRED', DATA_FILES.story_events, event.id, '原著事件缺少有效段落证据。', '绑定精确的 source_evidence，而非仅提供 chapter_id。'));
+    } else if (event.provenance === 'SOURCE_FACT' && asArray(event.source_refs).length &&
+        event.evidence_refs.some((id) => !asArray(event.source_refs).includes(evidenceById.get(id)?.chapter_id))) {
+      issues.push(issue('EVENT-EVIDENCE-CHAPTER', DATA_FILES.story_events, event.id, '事件证据所属章节与 source_refs 不一致。', '确保事件段落摘录来自已声明章节。'));
+    }
+  }
+  return issues;
+}
+
 function checkReferences(data) {
   const issues = [];
   const chapters = chapterIds(data);
@@ -364,6 +855,7 @@ function checkReferences(data) {
   const events = entityIds(data, 'story_events');
   const scriptScenes = entityIds(data, 'screenplay');
   const assetVersionIds = assetVersions(data);
+  const evidenceIds = new Set(list(data, 'source_evidence').map((entry) => entry?.source_id).filter(isNonEmpty));
   const fileFor = (key) => DATA_FILES[key];
 
   for (const key of ['story_events', 'characters', 'factions', 'scenes', 'props']) {
@@ -386,10 +878,27 @@ function checkReferences(data) {
     if (character.faction_id && !factions.has(character.faction_id)) {
       issues.push(issue('CHARACTER-FACTION-REF', fileFor('characters'), character.id, `所属势力不存在：${character.faction_id}。`, '引用 factions.json 中的 faction id。'));
     }
+    if (character.identity_anchor_id && !isNonEmpty(character.identity_anchor_id)) {
+      issues.push(issue('CHARACTER-IDENTITY-ANCHOR', fileFor('characters'), character.id, '人物身份锚点 ID 无效。', '为人物设置稳定且唯一的 identity_anchor_id。'));
+    }
+    if (character.required_views && (!Array.isArray(character.required_views) ||
+        character.required_views.some((view) => !['FRONT', 'SIDE', 'BACK', 'FACE', 'EXPRESSION', 'COSTUME_DETAIL'].includes(view)))) {
+      issues.push(issue('CHARACTER-REQUIRED-VIEWS', fileFor('characters'), character.id, '人物 required_views 包含无效视角。', '仅使用 FRONT、SIDE、BACK、FACE、EXPRESSION、COSTUME_DETAIL。'));
+    }
+  }
+  for (const rule of list(data, 'costume_rules')) {
+    if (rule.source_refs && !hasReferences(rule.source_refs, chapters)) {
+      issues.push(issue('COSTUME-SOURCE-REF', fileFor('costume_rules'), rule.id, '服饰规则引用了不存在的原著章节。', '修正 source_refs；美术例外须另有理由并经用户确认。'));
+    }
   }
   for (const rule of list(data, 'costume_rules')) {
     if (!factions.has(rule.faction_id)) {
       issues.push(issue('COSTUME-FACTION-REF', fileFor('costume_rules'), rule.id, `服饰规则引用的势力不存在：${rule.faction_id ?? '缺失'}。`, '引用 factions.json 中的稳定势力 ID。'));
+    }
+    for (const evidenceId of asArray(rule.exception_evidence_refs)) {
+      if (!evidenceIds.has(evidenceId)) {
+        issues.push(issue('COSTUME-EXCEPTION-EVIDENCE', fileFor('costume_rules'), rule.id, `服饰例外证据不存在：${evidenceId}。`, '引用 source_evidence.json 中已验证的原文段落，或记录用户批准。'));
+      }
     }
   }
   for (const event of list(data, 'story_events')) {
@@ -402,9 +911,53 @@ function checkReferences(data) {
       issues.push(issue('TIMELINE-EVENT-REF', fileFor('timeline'), entry.id, `时间线引用的原著事件不存在：${entry.story_event_id}。`, '引用 story_events.json 中已登记的事件 ID。'));
     }
   }
+  const continuityByChapter = new Map(list(data, 'continuity').map((entry) => [entry.chapter_id, entry]));
+  for (const entry of list(data, 'continuity')) {
+    if (!chapters.has(entry.chapter_id)) {
+      issues.push(issue('CONTINUITY-CHAPTER-REF', fileFor('continuity'), entry.chapter_id, '连续性状态引用了不存在的章节。', '先在 source_index.json 登记章节。'));
+    }
+    for (const eventId of asArray(entry.confirmed_event_ids)) {
+      if (!events.has(eventId)) issues.push(issue('CONTINUITY-EVENT-REF', fileFor('continuity'), entry.chapter_id, `已确认事件不存在：${eventId}。`, '引用 story_events.json 中的事件 ID。'));
+    }
+    for (const state of asArray(entry.character_states)) {
+      if (!characters.has(state.character_id)) issues.push(issue('CONTINUITY-CHARACTER-REF', fileFor('continuity'), entry.chapter_id, `人物状态引用不存在的人物：${state.character_id}。`, '引用 characters.json 中的稳定人物 ID。'));
+      for (const propId of asArray(state.held_prop_ids)) {
+        if (!props.has(propId)) issues.push(issue('CONTINUITY-PROP-REF', fileFor('continuity'), entry.chapter_id, `人物持有道具不存在：${propId}。`, '引用 props.json 中的稳定道具 ID。'));
+      }
+      if (state.current_scene_id && !scenes.has(state.current_scene_id)) {
+        issues.push(issue('CONTINUITY-SCENE-REF', fileFor('continuity'), entry.chapter_id, `当前场景不存在：${state.current_scene_id}。`, '引用 scenes.json 中的稳定场景 ID。'));
+      }
+    }
+    if (entry.inherited_from_chapter_id && !continuityByChapter.has(entry.inherited_from_chapter_id)) {
+      issues.push(issue('CONTINUITY-INHERITANCE-REF', fileFor('continuity'), entry.chapter_id, '继承来源章节缺少已记录的连续性状态。', '引用上一已确认章节的 continuity 状态。'));
+    }
+  }
   for (const scene of list(data, 'screenplay')) {
     if (scene.chapter_id && !chapters.has(scene.chapter_id)) {
       issues.push(issue('SCREENPLAY-CHAPTER-REF', fileFor('screenplay'), scene.id, `原著章节不存在：${scene.chapter_id}。`, '修正章节引用。'));
+    }
+    const segmentIds = new Set(list(data, 'screenplay').flatMap((scene) =>
+      asArray(scene.segments).map((segment) => segment?.id).filter(isNonEmpty),
+    ));
+    const shotIds = entityIds(data, 'storyboard');
+    for (const beat of list(data, 'event_beats')) {
+      if (!events.has(beat.event_id)) {
+        issues.push(issue('EVENT-BEAT-EVENT-REF', fileFor('event_beats'), beat.id, `事件细节引用的原著事件不存在：${beat.event_id ?? '缺失'}。`, '引用 story_events.json 中的稳定事件 ID。'));
+      }
+      for (const id of asArray(beat.evidence_refs)) {
+        if (!evidenceIds.has(id)) issues.push(issue('EVENT-BEAT-EVIDENCE-REF', fileFor('event_beats'), beat.id, `事件细节引用的原著证据不存在：${id}。`, '绑定 source_evidence.json 中已验证的段落证据。'));
+      }
+      for (const id of asArray(beat.screenplay_scene_ids)) {
+        if (!scriptScenes.has(id)) issues.push(issue('EVENT-BEAT-SCENE-REF', fileFor('event_beats'), beat.id, `事件细节映射的剧本场次不存在：${id}。`, '将关键事实映射到实际剧本场次。'));
+      }
+      for (const id of asArray(beat.screenplay_segment_ids)) {
+        if (!segmentIds.has(id)) issues.push(issue('EVENT-BEAT-SEGMENT-REF', fileFor('event_beats'), beat.id, `事件细节映射的剧本片段不存在：${id}。`, '将关键事实映射到实际剧本片段。'));
+      }
+      for (const id of asArray(beat.shot_ids)) {
+        if (list(data, 'storyboard').length && !shotIds.has(id)) {
+          issues.push(issue('EVENT-BEAT-SHOT-REF', fileFor('event_beats'), beat.id, `事件细节映射的分镜不存在：${id}。`, '将关键事实映射到至少一个实际分镜。'));
+        }
+      }
     }
     if (scene.scene_id && !scenes.has(scene.scene_id)) {
       issues.push(issue('SCREENPLAY-SCENE-REF', fileFor('screenplay'), scene.id, `场景不存在：${scene.scene_id}。`, '引用 scenes.json 中已登记的场景。'));
@@ -579,21 +1132,94 @@ function checkFiles(root, data) {
     } else digests.set(digest, shot.id);
   }
   for (const task of list(data, 'production_tasks')) {
-    if (task.status !== 'COMPLETED' || !isNonEmpty(task.output_file)) continue;
+    if (task.status !== 'COMPLETED') continue;
     const file = safePath(root, task.output_file);
-    if (!file || !fs.existsSync(file)) {
-      issues.push(issue('TASK-OUTPUT-FILE', DATA_FILES.production_tasks, task.id, `已完成任务的实际输出文件不存在或路径无效：${task.output_file}。`, '检查真实输出位置；不要只凭任务启动状态标记成功。'));
-    } else if (fs.statSync(file).size === 0) {
-      issues.push(issue('TASK-OUTPUT-EMPTY', DATA_FILES.production_tasks, task.id, `已完成任务的输出文件为空：${task.output_file}。`, '检查真实媒体文件并确认可读取后再标记完成。'));
+    if (!isNonEmpty(task.output_file) || !file || !fs.existsSync(file) || !fs.statSync(file).isFile() || fs.statSync(file).size === 0) {
+      issues.push(issue('MEDIA-OUTPUT-UNREADABLE', DATA_FILES.production_tasks, task.id, `已完成任务的输出文件不存在、为空或不可读取：${task.output_file ?? ''}。`, '只在真实输出文件可读并通过对应媒体流检查后标记 COMPLETED。'));
+      continue;
+    }
+    if (['VIDEO', 'FINAL_RENDER'].includes(task.kind)) {
+      const inspected = probeMediaFile(file, 'VIDEO');
+      if (!inspected.valid) {
+        const missingStream = /缺少 video 流|没有可验证的非空视频流/.test(inspected.reason ?? '');
+        issues.push(issue(
+          missingStream ? 'MEDIA-STREAM-MISSING' : 'MEDIA-FILE-INVALID',
+          DATA_FILES.production_tasks,
+          task.id,
+          inspected.reason || '视频输出无法验证。',
+          '使用具有真实视频流的文件；FFprobe 存在时应记录有效编码、分辨率和时长。',
+        ));
+        continue;
+      }
+      if (!(inspected.duration > 0)) {
+        issues.push(issue('MEDIA-DURATION-INVALID', DATA_FILES.production_tasks, task.id, '视频流时长无效。', '使用真实视频时长，不得根据任务参数伪造检测值。'));
+      }
+      if (task.verification_level !== inspected.level) {
+        issues.push(issue('MEDIA-VERIFICATION-LEVEL', DATA_FILES.production_tasks, task.id,
+          `任务登记的验证等级 ${task.verification_level ?? '缺失'} 与实际 ${inspected.level} 检查不一致。`,
+          `准确记录 ${inspected.level}；BASIC 仅表示基础格式检查，非完整解码验证。`));
+      }
+      const videoStream = asArray(inspected.streams).find((stream) => stream.codec_type === 'video');
+      if (videoStream && (task.width || task.height) &&
+          (videoStream.width !== task.width || videoStream.height !== task.height)) {
+        issues.push(issue('MEDIA-RESOLUTION-MISMATCH', DATA_FILES.production_tasks, task.id, '视频实际分辨率与任务登记值不一致。', '以媒体探测结果更新登记或重新输出。'));
+      }
+      if (task.kind === 'VIDEO' && task.allow_audio_streams !== true &&
+          asArray(inspected.streams).some((stream) => stream.codec_type === 'audio')) {
+        issues.push(issue('AUDIO-UNEXPECTED-STREAM', DATA_FILES.production_tasks, task.id, '视频生成任务出现未声明的音频流。', '剥离未授权对白/BGM，或显式记录经审核的音频流策略。'));
+      }
+      if (task.kind === 'FINAL_RENDER') {
+        const hasCompletedAudio = list(data, 'audio_timeline').some((track) => track.status === 'COMPLETED');
+        const hasAudioStream = asArray(inspected.streams).some((stream) => stream.codec_type === 'audio');
+        if (hasCompletedAudio && !hasAudioStream) {
+          issues.push(issue('MEDIA-STREAM-MISSING', DATA_FILES.production_tasks, task.id, '最终成片缺少计划的音频流。', '将已审核对白/旁白/音效混入最终声轨并重新验证。'));
+        }
+        if (!hasCompletedAudio && hasAudioStream &&
+            !list(data, 'audio_timeline').some((track) => track.status === 'NOT_APPLICABLE' && isNonEmpty(track.reason))) {
+          issues.push(issue('AUDIO-UNEXPECTED-STREAM', DATA_FILES.production_tasks, task.id, '最终成片有音轨，但没有对应音频时间轴或 NOT_APPLICABLE 说明。', '登记实际音轨或记录不需要音频的原因。'));
+        }
+      }
+      if (Number.isFinite(task.duration_seconds) &&
+          Math.abs(inspected.duration - task.duration_seconds) > Math.max(0.5, task.duration_seconds * 0.1)) {
+        issues.push(issue('MEDIA-DURATION-MISMATCH', DATA_FILES.production_tasks, task.id, `实际媒体时长 ${inspected.duration.toFixed(2)}s 与任务记录不一致。`, '依据媒体流探测结果更正时长，并复核分镜节奏。'));
+      }
+      if (inspected.level === 'BASIC') {
+        issues.push(issue('MEDIA-BASIC-VERIFICATION', DATA_FILES.production_tasks, task.id, '媒体已通过基础结构检查；未检测到 FFprobe，未执行完整解码验证。', '在支持 FFprobe 的环境中复核流编码和解码；该限制已显式记录。', 'WARNING'));
+      }
     }
   }
   for (const track of list(data, 'audio_timeline')) {
-    if (!isNonEmpty(track.file)) continue;
+    if (track.status === 'NOT_APPLICABLE') {
+      if (!isNonEmpty(track.reason)) {
+        issues.push(issue('AUDIO-NOT-APPLICABLE-REASON', DATA_FILES.audio_timeline, track.id, 'NOT_APPLICABLE 音轨必须记录原因。', '说明该镜头为何不需要对白、旁白、环境音或特效音。'));
+      }
+      continue;
+    }
+    if (!isNonEmpty(track.file)) {
+      if (track.status === 'COMPLETED') issues.push(issue('MEDIA-OUTPUT-UNREADABLE', DATA_FILES.audio_timeline, track.id, '已完成音轨缺少实际文件路径。', '登记真实 WAV/MP3 文件，不能仅依靠状态字段。'));
+      continue;
+    }
     const file = safePath(root, track.file);
-    if (!file || !fs.existsSync(file)) {
-      issues.push(issue('AUDIO-FILE-MISSING', DATA_FILES.audio_timeline, track.id, `登记的音频文件不存在或路径无效：${track.file}。`, '只记录已落盘的音频产物。'));
-    } else if (fs.statSync(file).size === 0) {
-      issues.push(issue('AUDIO-FILE-EMPTY', DATA_FILES.audio_timeline, track.id, `登记的音频文件为空：${track.file}。`, '检查真实音频文件并确认可读取。'));
+    if (!file || !fs.existsSync(file) || !fs.statSync(file).isFile() || fs.statSync(file).size === 0) {
+      issues.push(issue('MEDIA-OUTPUT-UNREADABLE', DATA_FILES.audio_timeline, track.id, `登记的音频文件不存在、为空或不可读取：${track.file}。`, '只记录已落盘并通过 WAV/MP3 流检查的音频产物。'));
+      continue;
+    }
+    const inspected = probeMediaFile(file, 'AUDIO');
+    if (!inspected.valid) {
+      const missingStream = /缺少 audio 流|缺少有效 fmt 或非空 data 音频流|没有可识别的有效 MPEG 音频帧/.test(inspected.reason ?? '');
+      issues.push(issue(missingStream ? 'MEDIA-STREAM-MISSING' : 'MEDIA-FILE-INVALID', DATA_FILES.audio_timeline, track.id,
+        inspected.reason || '音频输出无法验证。', '使用具有真实音频流和正时长的 WAV 或 MP3 文件。'));
+      continue;
+    }
+    if (inspected.level === 'BASIC' && track.verification_level !== 'BASIC') {
+      issues.push(issue('MEDIA-VERIFICATION-LEVEL', DATA_FILES.audio_timeline, track.id, '系统没有 FFprobe；音频仅通过基础结构检查，未明确记录 BASIC 验证等级。', '将 verification_level 设为 BASIC，并在可用时用 FFprobe 复核。'));
+    }
+    if (inspected.level === 'BASIC') {
+      issues.push(issue('MEDIA-BASIC-VERIFICATION', DATA_FILES.audio_timeline, track.id, '音频通过基础结构检查；未执行完整解码验证。', '在支持 FFprobe 的环境中复核流编码和时长。', 'WARNING'));
+    }
+    if (Number.isFinite(track.duration_seconds) &&
+        Math.abs(inspected.duration - track.duration_seconds) > Math.max(0.5, track.duration_seconds * 0.1)) {
+      issues.push(issue('MEDIA-DURATION-MISMATCH', DATA_FILES.audio_timeline, track.id, `实际音频时长 ${inspected.duration.toFixed(2)}s 与时间轴记录不一致。`, '根据检测到的真实音频流时长修正时间轴。'));
     }
   }
   const musicFiles = new Set();
@@ -608,14 +1234,36 @@ function checkFiles(root, data) {
 
 function checkProjectFiles(context) {
   const issues = [];
-  const files = new Set([...asArray(context.project.source_files)]);
+  const sourceRecords = new Map(asArray(context.project.source_files).map((entry) => {
+    const record = typeof entry === 'string' ? { path: entry } : entry;
+    return [record?.path, record];
+  }));
+  const files = new Set(sourceRecords.keys());
   for (const chapter of list(context.data, 'source_index')) {
-    if (isNonEmpty(chapter.source_file)) files.add(chapter.source_file);
+    if (isNonEmpty(chapter.source_file)) {
+      files.add(chapter.source_file);
+      if (!sourceRecords.has(chapter.source_file)) {
+        issues.push(issue('SOURCE-FILE-UNREGISTERED', DATA_FILES.source_index, chapter.id, '章节原著文件未登记到 project.source_files。', '将原著来源统一登记并保存 SHA-256。'));
+      }
+    }
   }
   for (const relativePath of files) {
     const file = safePath(context.root, relativePath);
     if (!file || !fs.existsSync(file) || !fs.statSync(file).isFile()) {
       issues.push(issue('SOURCE-FILE-MISSING', 'project.json', relativePath, `原著来源文件不存在或路径无效：${relativePath}。`, '将原著文件放入项目目录或修正相对路径；不能伪造已读来源。'));
+      continue;
+    }
+    const digest = sha256(fs.readFileSync(file));
+    const record = sourceRecords.get(relativePath);
+    if (!record?.sha256) {
+      issues.push(issue('SOURCE-FILE-HASH-MISSING', 'project.json', relativePath, '原著来源文件未登记 SHA-256。', '初始化时登记文件哈希；不可将章节 ID 作为内容完整性的替代。'));
+    } else if (record.sha256 !== digest) {
+      issues.push(issue('SOURCE-FILE-CHANGED', 'project.json', relativePath, '原著输入文件 SHA-256 已变化，现有来源证据和已确认阶段需要复核。', '确认这是有意修订后更新来源版本，并仅刷新引用该来源的下游资产/剧本；保留旧审批记录。'));
+    }
+    for (const chapter of list(context.data, 'source_index').filter((entry) => entry.source_file === relativePath)) {
+      if (chapter.source_file_hash !== digest) {
+        issues.push(issue('SOURCE-CHAPTER-HASH-CHANGED', DATA_FILES.source_index, chapter.id, '章节登记的原著文件哈希与当前内容不一致。', '重新核对该章节段落证据，更新 hash 并标记实际引用它的下游成果为 STALE。'));
+      }
     }
   }
   return issues;
@@ -727,22 +1375,42 @@ function checkCoverage(data) {
 export function calculateSpeechDuration(text, type, rates = {}) {
   const content = String(text ?? '').trim();
   if (!content) return 0;
-  const chineseRate = rates.chineseCharactersPerMinute ?? 240;
-  const englishRate = rates.englishWordsPerMinute ?? 150;
+  const profile = rates.speakers?.[rates.speaker_id] ?? rates[type?.toLowerCase()] ?? rates;
+  const chineseRate = profile.chineseCharactersPerMinute ?? 240;
+  const englishRate = profile.englishWordsPerMinute ?? 150;
   if (!(chineseRate > 0) || !(englishRate > 0)) throw new Error('语速必须大于 0。');
   const chineseChars = (content.match(/[\u3400-\u9fff]/g) ?? []).length;
   const englishWords = (content.match(/[A-Za-z0-9]+(?:['’-][A-Za-z0-9]+)*/g) ?? []).length;
-  const pauseSeconds = (content.match(/[，。！？；：,.!?;:]/g) ?? []).length * 0.12;
+  const pauseSeconds = (content.match(/[，。！？；：,.!?;:]/g) ?? []).length * (profile.pause_seconds ?? 0.12);
   const chineseSeconds = chineseChars ? chineseChars * 60 / chineseRate : 0;
   const englishSeconds = englishWords ? englishWords * 60 / englishRate : 0;
-  const seconds = chineseSeconds + englishSeconds + pauseSeconds;
+  const emotionFactor = Number.isFinite(profile.emotion_factor) && profile.emotion_factor > 0 ? profile.emotion_factor : 1;
+  const seconds = (chineseSeconds + englishSeconds) * emotionFactor + pauseSeconds +
+    (Number.isFinite(profile.emotion_pause_seconds) ? profile.emotion_pause_seconds : 0);
   return Math.round(seconds * 10) / 10;
 }
 
+export function estimateSpeechDuration(text, type, rates = {}) {
+  const estimated = calculateSpeechDuration(text, type, rates);
+  return {
+    duration_min: Math.round(estimated * 0.85 * 10) / 10,
+    duration_estimated: estimated,
+    duration_max: Math.round(estimated * 1.2 * 10) / 10,
+  };
+}
+
 export function estimateSegmentDuration(segment, rates) {
+  if (Number.isFinite(segment?.duration_estimated)) return segment.duration_estimated;
   if (Number.isFinite(segment?.duration_seconds)) return segment.duration_seconds;
   if (['DIALOGUE', 'NARRATION', 'INNER_MONOLOGUE'].includes(segment?.type)) {
-    return calculateSpeechDuration(segment.text, segment.type, rates);
+    return calculateSpeechDuration(segment.text, segment.type, {
+      ...rates,
+      speaker_id: segment.speaker_id,
+      ...(segment.speech_rate ? { [segment.type.toLowerCase()]: segment.speech_rate } : {}),
+      ...(Number.isFinite(segment.pause_seconds) ? { pause_seconds: segment.pause_seconds } : {}),
+      ...(Number.isFinite(segment.emotion_factor) ? { emotion_factor: segment.emotion_factor } : {}),
+      ...(Number.isFinite(segment.emotion_pause_seconds) ? { emotion_pause_seconds: segment.emotion_pause_seconds } : {}),
+    });
   }
   return null;
 }
@@ -777,6 +1445,7 @@ function stageIssues(stageId, context) {
       }
       const factions = list(data, 'factions');
       const rules = list(data, 'costume_rules');
+      const evidenceIds = new Set(list(data, 'source_evidence').map((entry) => entry.source_id));
       const factionVisuals = new Set();
       for (const faction of factions) {
         const factionRules = rules.filter((rule) => rule.faction_id === faction.id);
@@ -793,7 +1462,10 @@ function stageIssues(stageId, context) {
         }
         const ranks = asArray(faction.class_system);
         if (!ranks.length) {
-          add('STAGE-02-RANKS', DATA_FILES.factions, faction.id, '势力没有原著依据的等级体系。', '提取原著中出现的等级；原文没有等级时明确记录 UNKNOWN 并由用户确认。');
+          const ruleUnknown = faction.class_system_status === 'UNKNOWN' && faction.user_confirmation_required === true;
+          add(ruleUnknown ? 'STAGE-02-RANKS-UNKNOWN' : 'STAGE-02-RANKS', DATA_FILES.factions, faction.id,
+            ruleUnknown ? '原著未明确该势力的等级体系，等待用户确认，不得自行补造。' : '势力没有原著依据的等级体系。',
+            '提取原著中出现的等级；原文没有等级时记录 UNKNOWN，并明确等待用户确认。');
         } else if (ranks.length !== factionRules.length || ranks.some((rank) => !factionRules.some((rule) => rule.rank === rank))) {
           add('STAGE-02-RANK-COVERAGE', DATA_FILES.costume_rules, faction.id, '服饰等级规则未覆盖该势力的全部等级。', '每个原著等级分别设计服装规则，不得合并层级。');
         }
@@ -801,8 +1473,26 @@ function stageIssues(stageId, context) {
           add('STAGE-02-COSTUME-FACTION', DATA_FILES.costume_rules, faction.id, '势力缺少服饰等级规则。', '逐等级定义颜色、面料、结构、纹样、配饰、武器或身份标识和华丽度。');
         }
         for (const rule of factionRules) {
-          for (const field of ['rank', 'color', 'material', 'structure', 'pattern', 'accessories', 'weapon', 'insignia', 'ornament_level']) {
+          for (const field of [
+            'rank', 'color', 'material', 'structure', 'pattern', 'accessories', 'weapon',
+            'insignia', 'ornament_level', 'garment_formality', 'costume_context',
+          ]) {
             if (!isNonEmpty(rule[field])) add('STAGE-02-COSTUME-FIELDS', DATA_FILES.costume_rules, rule.id, `服饰等级规则缺少 ${field}。`, '补齐可执行的等级视觉差异；未知内容标记为推断或待确认。');
+          }
+          for (const field of ['material_grade', 'craftsmanship_grade', 'insignia_grade', 'accessory_grade']) {
+            const grade = rule[field];
+            if (!(Number.isInteger(grade) && grade >= 1 && grade <= 5) && grade !== 'UNKNOWN') {
+              add('STAGE-02-COSTUME-GRADE', DATA_FILES.costume_rules, rule.id, `${field} 必须是 1–5 等级或 UNKNOWN。`, '分别记录面料、工艺、身份标识和配饰等级，不得只按颜色或华丽度区分。');
+            }
+          }
+          if (!Array.isArray(rule.source_refs)) {
+            add('STAGE-02-COSTUME-SOURCE', DATA_FILES.costume_rules, rule.id, '服饰等级规则缺少来源引用数组。', '记录原著依据；原著未说明时标记 UNKNOWN 并等待用户确认。');
+          }
+          const validException = isNonEmpty(rule.exception_reason) &&
+            (isNonEmpty(rule.exception_approved_by) ||
+              asArray(rule.exception_evidence_refs).some((id) => evidenceIds.has(id)));
+          if (isNonEmpty(rule.exception_reason) && !validException) {
+            add('STAGE-02-COSTUME-EXCEPTION', DATA_FILES.costume_rules, rule.id, '特殊服饰例外缺少原著证据或用户批准。', '添加有效原著证据引用，或记录用户批准人和例外理由。');
           }
           if (!Number.isInteger(rule.rank_order) || rule.rank_order < 1) {
             add('STAGE-02-RANK-ORDER', DATA_FILES.costume_rules, rule.id, '服饰等级缺少正整数 rank_order。', '按原著等级从低到高设置稳定序号。');
@@ -817,8 +1507,19 @@ function stageIssues(stageId, context) {
           add('STAGE-02-RANK-DUPLICATE', DATA_FILES.costume_rules, faction.id, '同一势力内服饰等级或 rank_order 重复。', '为每个等级保留唯一规则和顺序。');
         }
         for (let index = 1; index < sortedRules.length; index++) {
-          if (sortedRules[index].ornament_score < sortedRules[index - 1].ornament_score) {
-            add('STAGE-02-ORNAMENT-ORDER', DATA_FILES.costume_rules, sortedRules[index].id, '低等级服饰华丽度高于前一级。', '使华丽度随等级上升或保持一致，特殊例外需原著依据并人工确认。');
+          const current = sortedRules[index];
+          const previous = sortedRules[index - 1];
+          const approvedException = isNonEmpty(current.exception_reason) &&
+            (isNonEmpty(current.exception_approved_by) ||
+              asArray(current.exception_evidence_refs).some((id) => evidenceIds.has(id)));
+          if (current.ornament_score < previous.ornament_score && !approvedException) {
+            add('STAGE-02-ORNAMENT-ORDER', DATA_FILES.costume_rules, current.id, '低等级服饰华丽度高于前一级。', '使华丽度随等级上升或保持一致；特殊例外必须有原著依据或用户批准。');
+          }
+          for (const field of ['material_grade', 'craftsmanship_grade', 'insignia_grade', 'accessory_grade']) {
+            if (Number.isInteger(previous[field]) && Number.isInteger(current[field]) &&
+                current[field] < previous[field] && !approvedException) {
+              add('STAGE-02-COSTUME-GRADE-ORDER', DATA_FILES.costume_rules, current.id, `${field} 低于同势力的前一等级。`, '检查等级区分；例外须记录原著依据或用户批准，不能仅凭颜色或华丽度区分。');
+            }
           }
         }
       }
@@ -855,14 +1556,78 @@ function stageIssues(stageId, context) {
         if (!isNonEmpty(asset.file) || !isNonEmpty(asset.prompt)) {
           add('STAGE-04-OUTPUT', DATA_FILES.asset_registry, asset.asset_id, '衍生资产缺少真实图片文件或完整提示词。', '登记实际生成文件和提示词；不可覆盖已批准的旧版本。');
         }
+        if (asset.asset_type === 'character') {
+          const parent = assetVersions(data).get(asset.parent_asset_version_id);
+          const characterId = asset.character_id ?? asset.asset_id;
+          const character = list(data, 'characters').find((entry) => entry.id === characterId);
+          const anchor = asset.identity_anchor_id ?? character?.identity_anchor_id;
+          if (!isNonEmpty(anchor) || (parent?.identity_anchor_id && parent.identity_anchor_id !== anchor)) {
+            add('CHARACTER-IDENTITY-ANCHOR', DATA_FILES.asset_registry, asset.asset_id, '人物衍生资产缺少与主版本一致的身份锚点。', '普通换装和年龄时期变化必须继承身份锚点及核心识别特征。');
+          }
+          if (asset.transformation_type && asset.transformation_type !== 'COSTUME_CHANGE' &&
+              (asset.identity_change_allowed !== true || !asArray(asset.identity_change_evidence).length)) {
+            add('CHARACTER-IDENTITY-CHANGE-EVIDENCE', DATA_FILES.asset_registry, asset.asset_id, '幻化、易容、夺舍或变身缺少明确授权及原著依据。', '记录 transformation_type、identity_change_allowed 和对应 source evidence。');
+          }
+        }
+      }
+      for (const character of list(data, 'characters')) {
+        const characterAssets = list(data, 'asset_registry').filter((asset) =>
+          asset.asset_type === 'character' && (asset.character_id === character.id || asset.asset_id === character.id),
+        );
+        const master = characterAssets.find((asset) => !asset.parent_asset_version_id && asset.approval_status === 'APPROVED');
+        for (const view of asArray(character.required_views)) {
+          const found = characterAssets.some((asset) => asset.view_type === view &&
+            asset.approval_status === 'APPROVED' && !asset.stale &&
+            (view === 'FRONT' ? !asset.parent_asset_version_id
+              : master && asset.parent_asset_version_id === master.version_id));
+          if (!found) add('CHARACTER-REQUIRED-VIEW', DATA_FILES.asset_registry, character.id,
+            `人物 ${character.id} 缺少已批准且引用主版本的 ${view} 视角资产。`,
+            '仅为配置要求的主要人物视角生成资产；所有非主视角必须引用已批准主资产版本。');
+        }
       }
       break;
     }
     case '05-screenplay': {
       issues.push(...checkCoverage(data));
+      const coveredBeats = list(data, 'event_beats');
+      const requiredBeatTypes = ['CAUSE', 'PROCESS', 'KEY_ACTION', 'REACTION', 'RESULT', 'CONSEQUENCE'];
+      for (const event of list(data, 'story_events').filter((entry) => entry.importance !== 'MINOR')) {
+        const eventBeats = coveredBeats.filter((beat) => beat.event_id === event.id);
+        if (!eventBeats.length) {
+          add('EVENT-BEATS-MISSING', DATA_FILES.event_beats, event.id, '重要原著事件缺少关键事实单元拆解。', '拆分起因、经过、关键动作、重要对话、人物反应、结果和后续影响，并映射到剧本片段和镜头。');
+        }
+        for (const beatType of [...requiredBeatTypes, ...(event.dialogue_required ? ['DIALOGUE'] : [])]) {
+          if (!eventBeats.some((beat) => beat.beat_type === beatType)) {
+            add('EVENT-BEAT-TYPE-MISSING', DATA_FILES.event_beats, event.id, `重要事件缺少 ${beatType} 事实单元。`,
+              '逐项保留事件起因、经过、关键动作、人物反应、结果和后续影响；原著有关键对话时单独拆解。');
+          }
+        }
+      }
+      for (const beat of coveredBeats) {
+        if (!asArray(beat.screenplay_scene_ids).length || !asArray(beat.screenplay_segment_ids).length) {
+          add('EVENT-BEAT-SCREENPLAY-COVERAGE', DATA_FILES.event_beats, beat.id, '重要事实单元未映射到剧本场次和片段。', '逐项关联保留该事实的剧本场次及具体剧本片段。');
+        }
+      }
       if (!list(data, 'screenplay').length) add('STAGE-05-SCREENPLAY', DATA_FILES.screenplay, null, '剧本没有场次。', '按原著事件写场次，结构化区分对白、旁白、内心独白、动作和环境。');
       for (const scene of list(data, 'screenplay')) {
         if (!asArray(scene.event_ids).length) add('STAGE-05-SCENE-EVENTS', DATA_FILES.screenplay, scene.id, '剧本场次没有绑定原著事件。', '将每场戏映射到一条或多条原著事件。');
+        const continuity = list(data, 'continuity').find((entry) => entry.chapter_id === scene.chapter_id);
+        if (!continuity || continuity.read_status !== 'READ') {
+          add('STAGE-05-CONTINUITY-CHAPTER', DATA_FILES.continuity, scene.chapter_id ?? scene.id, '剧本章节缺少已读并确认的连续性状态。', '记录已读章节、已确认事件、人物当前状态和未解决问题，再继续剧本制作。');
+        } else {
+          const currentIndex = list(data, 'source_index').findIndex((chapter) => chapter.id === scene.chapter_id);
+          if (currentIndex > 0) {
+            const previousChapterId = list(data, 'source_index')[currentIndex - 1].id;
+            if (continuity.inherited_from_chapter_id !== previousChapterId) {
+              add('STAGE-05-CONTINUITY-INHERITANCE', DATA_FILES.continuity, scene.chapter_id, '新章节未继承上一章节的确认状态。', '继承前章人物时期、服装、伤势、持有道具、场景状态和未解决问题。');
+            }
+          }
+          for (const characterId of asArray(scene.character_ids)) {
+            if (!asArray(continuity.character_states).some((state) => state.character_id === characterId)) {
+              add('STAGE-05-CONTINUITY-CHARACTER', DATA_FILES.continuity, scene.chapter_id, `缺少人物 ${characterId} 的当前连续性状态。`, '记录人物年龄/时期、当前服装、伤势、持有道具和所在场景。');
+            }
+          }
+        }
         let calculatedDuration = 0;
         for (const segment of asArray(scene.segments)) {
           const duration = estimateSegmentDuration(segment);
@@ -886,6 +1651,11 @@ function stageIssues(stageId, context) {
       for (const shot of list(data, 'storyboard')) {
         if (!isNonEmpty(shot.image_file)) add('STAGE-06-IMAGE', DATA_FILES.storyboard, shot.id, '分镜图没有登记真实文件。', '使用已审核资产生成分镜候选图，并登记实际路径。');
         if (shot.review_status !== 'APPROVED') add('STAGE-06-REVIEW', DATA_FILES.storyboard, shot.id, '分镜图尚未人工审核通过。', '展示候选图并等待人工确认。');
+      }
+      for (const beat of list(data, 'event_beats')) {
+        if (!asArray(beat.shot_ids).length || beat.shot_ids.some((id) => !entityIds(data, 'storyboard').has(id))) {
+          add('EVENT-BEAT-SHOT-COVERAGE', DATA_FILES.event_beats, beat.id, '原著关键事实未映射到有效分镜镜头。', '为起因、关键动作、对话、反应、结果和后续影响安排明确镜头。');
+        }
       }
       break;
     }
@@ -914,12 +1684,27 @@ function stageIssues(stageId, context) {
         if (!['DIALOGUE', 'NARRATION', 'INNER_MONOLOGUE', 'AMBIENCE', 'SFX', 'BACKGROUND_MUSIC'].includes(track.type)) {
           add('STAGE-08-AUDIO-TYPE', DATA_FILES.audio_timeline, track.id, `音轨类型非法：${track.type ?? '缺失'}。`, '使用对白、旁白、内心独白、环境音效、特效音效或背景音乐类型。');
         }
-        if (track.status !== 'COMPLETED' || !isNonEmpty(track.file)) {
+        if (track.status === 'NOT_APPLICABLE') {
+          if (!isNonEmpty(track.reason)) add('STAGE-08-AUDIO-NA-REASON', DATA_FILES.audio_timeline, track.id, 'NOT_APPLICABLE 音轨缺少原因。', '记录该镜头不需要此类音轨的理由。');
+        } else if (track.status !== 'COMPLETED' || !isNonEmpty(track.file)) {
           add('STAGE-08-AUDIO-FILE', DATA_FILES.audio_timeline, track.id, '音频时间轴条目尚无已完成的真实音频文件。', '确认实际文件和时间轴同步后再提交终检。');
         }
-        if (!Number.isFinite(track.start_seconds) || track.start_seconds < 0 ||
-            !Number.isFinite(track.duration_seconds) || track.duration_seconds <= 0) {
+        if (track.status !== 'NOT_APPLICABLE' && (!Number.isFinite(track.start_seconds) || track.start_seconds < 0 ||
+            !Number.isFinite(track.duration_seconds) || track.duration_seconds <= 0)) {
           add('STAGE-08-AUDIO-TIMING', DATA_FILES.audio_timeline, track.id, '音频轨道缺少有效时间范围。', '提供非负起始时间和正的实际时长。');
+        }
+      }
+      const requiredAudioChecks = [
+        'unexpected_bgm', 'stream_separation', 'voice_consistency', 'lip_sync',
+        'environment_sound_repetition', 'final_audio_integrity',
+      ];
+      const finalQc = asArray(data.quality_reports?.reports).find((report) => report.scope === 'FINAL' && report.status === 'APPROVED');
+      for (const checkId of requiredAudioChecks) {
+        const check = asArray(finalQc?.checks).find((entry) => entry.id === checkId);
+        if (!check || !['PASS', 'NOT_APPLICABLE'].includes(check.status) ||
+            (check.status === 'NOT_APPLICABLE' && !isNonEmpty(check.reason))) {
+          add('STAGE-08-AUDIO-QC-CHECK', DATA_FILES.quality_reports, checkId, `缺少 ${checkId} 的人工音视频质量检查记录或有效 NOT_APPLICABLE 理由。`,
+            '记录实际核验结果；对白声音一致性、口型同步、意外 BGM、环境音重复及最终音轨完整性均需审核。');
         }
       }
       const finalRenders = list(data, 'production_tasks').filter((task) => task.kind === 'FINAL_RENDER');
@@ -935,6 +1720,160 @@ function stageIssues(stageId, context) {
       add('STAGE-UNKNOWN', 'project.json', stageId, '未知制作阶段。', '使用固定的八阶段 ID。');
   }
   return issues;
+}
+
+function sourceReferencesForPhase(context, phaseId) {
+  const { data } = context;
+  const chapterIds = new Set();
+  const evidenceIds = new Set();
+  const eventIds = new Set();
+  const addRecord = (record) => {
+    asArray(record?.source_refs).forEach((id) => chapterIds.add(typeof id === 'string' ? id : id?.chapter_id));
+    asArray(record?.evidence_refs).forEach((id) => evidenceIds.add(typeof id === 'string' ? id : id?.source_id));
+    asArray(record?.claims).forEach((claim) => addRecord(claim));
+  };
+  const addEvents = (ids) => {
+    for (const id of ids) {
+      eventIds.add(id);
+      const event = list(data, 'story_events').find((entry) => entry.id === id);
+      if (event) addRecord(event);
+    }
+  };
+  if (phaseId === '01-source-analysis') {
+    list(data, 'source_index').forEach((chapter) => chapterIds.add(chapter.id));
+    asArray(context.project.source_files).forEach((entry) =>
+      chapterIds.add(typeof entry === 'string' ? entry : entry.path),
+    );
+  } else if (phaseId === '02-art-direction') {
+    [...list(data, 'factions'), ...list(data, 'costume_rules')].forEach(addRecord);
+  } else if (['03-master-assets', '04-derived-assets'].includes(phaseId)) {
+    const derived = phaseId === '04-derived-assets';
+    const assets = list(data, 'asset_registry').filter((asset) =>
+      derived ? Boolean(asset.parent_asset_version_id) : !asset.parent_asset_version_id,
+    );
+    assets.forEach(addRecord);
+    for (const asset of assets) {
+      const entityId = asset.character_id ?? asset.scene_id ?? asset.prop_id ?? asset.asset_id;
+      const entity = [...list(data, 'characters'), ...list(data, 'scenes'), ...list(data, 'props')]
+        .find((entry) => entry.id === entityId);
+      if (entity) addRecord(entity);
+    }
+  } else if (phaseId === '05-screenplay') {
+    for (const scene of list(data, 'screenplay')) {
+      addEvents(asArray(scene.event_ids));
+    }
+    for (const beat of list(data, 'event_beats')) addRecord(beat);
+  } else if (phaseId === '06-storyboard') {
+    for (const shot of list(data, 'storyboard')) {
+      if (shot.event_id) addEvents([shot.event_id]);
+    }
+  } else if (phaseId === '07-video') {
+    for (const task of list(data, 'production_tasks').filter((entry) => entry.kind === 'VIDEO')) {
+      for (const id of asArray(task.reference_asset_version_ids)) {
+        const asset = assetVersions(data).get(id);
+        if (asset) addRecord(asset);
+      }
+      const shot = list(data, 'storyboard').find((entry) => entry.id === task.shot_id);
+      if (shot?.event_id) addEvents([shot.event_id]);
+    }
+  } else if (phaseId === '08-audio-qc') {
+    for (const track of list(data, 'audio_timeline')) {
+      const scene = list(data, 'screenplay').find((entry) => entry.id === track.screenplay_scene_id);
+      if (scene) addEvents(asArray(scene.event_ids));
+    }
+  }
+  const sourceFiles = new Set();
+  const chapters = new Map(list(data, 'source_index').map((chapter) => [chapter.id, chapter]));
+  const evidence = new Map(list(data, 'source_evidence').map((entry) => [entry.source_id, entry]));
+  for (const chapterId of chapterIds) {
+    const chapter = chapters.get(chapterId);
+    if (chapter?.source_file) sourceFiles.add(chapter.source_file);
+    else if (typeof chapterId === 'string' && chapterId.includes('/')) sourceFiles.add(chapterId);
+  }
+  for (const id of evidenceIds) {
+    const entry = evidence.get(id);
+    if (entry?.source_file) sourceFiles.add(entry.source_file);
+  }
+  return [...sourceFiles];
+}
+
+function changedSourcePaths(context) {
+  return new Set(asArray(context.project.source_files).flatMap((entry) => {
+    const record = typeof entry === 'string' ? { path: entry } : entry;
+    const file = safePath(context.root, record?.path);
+    if (!file || !record?.sha256 || !fs.existsSync(file) || !fs.statSync(file).isFile()) return [];
+    return sha256(fs.readFileSync(file)) !== record.sha256 ? [record.path] : [];
+  }));
+}
+
+function markChangedSourceDependents(context) {
+  const changedPaths = changedSourcePaths(context);
+  if (!changedPaths.size) return false;
+  let modified = false;
+  const changedChapters = new Set(list(context.data, 'source_index')
+    .filter((chapter) => changedPaths.has(chapter.source_file)).map((chapter) => chapter.id));
+  const changedEvidence = new Set(list(context.data, 'source_evidence')
+    .filter((entry) => changedPaths.has(entry.source_file)).map((entry) => entry.source_id));
+  const usesChangedSource = (record) =>
+    asArray(record?.source_refs).some((id) => changedChapters.has(typeof id === 'string' ? id : id?.chapter_id)) ||
+    asArray(record?.evidence_refs).some((id) => changedEvidence.has(typeof id === 'string' ? id : id?.source_id)) ||
+    asArray(record?.claims).some(usesChangedSource);
+  const changedEvents = new Set(list(context.data, 'story_events')
+    .filter((event) => usesChangedSource(event)).map((event) => event.id));
+  const affectedEntities = new Set([
+    ...list(context.data, 'characters'),
+    ...list(context.data, 'scenes'),
+    ...list(context.data, 'props'),
+  ].filter(usesChangedSource).map((entity) => entity.id));
+  for (const asset of list(context.data, 'asset_registry')) {
+    if (usesChangedSource(asset) || affectedEntities.has(asset.character_id ?? asset.scene_id ?? asset.prop_id ?? asset.asset_id)) {
+      if (!asset.stale) {
+        asset.stale = true;
+        modified = true;
+      }
+    }
+  }
+  const staleAssetVersions = new Set(list(context.data, 'asset_registry').filter((asset) => asset.stale).map((asset) => asset.version_id));
+  let grew = true;
+  while (grew) {
+    grew = false;
+    for (const asset of list(context.data, 'asset_registry')) {
+      if (!asset.stale && (staleAssetVersions.has(asset.parent_asset_version_id) ||
+          asArray(asset.reference_asset_version_ids).some((id) => staleAssetVersions.has(id)))) {
+        asset.stale = true;
+        staleAssetVersions.add(asset.version_id);
+        modified = true;
+        grew = true;
+      }
+    }
+  }
+  for (const scene of list(context.data, 'screenplay')) {
+    if (asArray(scene.event_ids).some((id) => changedEvents.has(id)) && !scene.stale) {
+      scene.stale = true;
+      modified = true;
+    }
+  }
+  for (const beat of list(context.data, 'event_beats')) {
+    if ((changedEvents.has(beat.event_id) || usesChangedSource(beat)) && !beat.stale) {
+      beat.stale = true;
+      modified = true;
+    }
+  }
+  const changedShots = new Set(list(context.data, 'storyboard')
+    .filter((shot) => changedEvents.has(shot.event_id)).map((shot) => shot.id));
+  for (const shot of list(context.data, 'storyboard')) {
+    if (changedEvents.has(shot.event_id) && !shot.stale) {
+      shot.stale = true;
+      modified = true;
+    }
+  }
+  for (const task of list(context.data, 'production_tasks')) {
+    if (changedShots.has(task.shot_id) && !task.stale) {
+      task.stale = true;
+      modified = true;
+    }
+  }
+  return modified;
 }
 
 export function phaseSnapshot(context, phaseId) {
@@ -973,7 +1912,12 @@ export function phaseSnapshot(context, phaseId) {
   if (phaseId === '08-audio-qc') addMediaDigest(list(context.data, 'audio_timeline'));
   if (phaseId === '01-source-analysis' && fs.existsSync(context.worldBible)) {
     parts.push(`world_bible\0${fs.readFileSync(context.worldBible)}`);
-    addMediaDigest(asArray(context.project.source_files).map((file) => ({ file })));
+  }
+  for (const relative of sourceReferencesForPhase(context, phaseId)) {
+    const file = safePath(context.root, relative);
+    if (file && fs.existsSync(file) && fs.statSync(file).isFile()) {
+      parts.push(`source:${relative}\0${sha256(fs.readFileSync(file))}`);
+    }
   }
   return crypto.createHash('sha256').update(parts.join('\0')).digest('hex');
 }
@@ -981,9 +1925,11 @@ export function phaseSnapshot(context, phaseId) {
 export function validateProject(context, options = {}) {
   const { root, project, data } = context;
   const issues = [
+    ...validateSchemas(context),
     ...checkProjectStructure(project),
     ...checkApprovals(project, data),
     ...checkCollectionIds(data),
+    ...checkSourceEvidence(context),
     ...checkReferences(data),
     ...checkFiles(root, data),
     ...checkProjectFiles(context),
@@ -1006,20 +1952,99 @@ export function validateProject(context, options = {}) {
 }
 
 export function buildImagePrompt(style, parts, mode = 'ASSET') {
-  if (!['ASSET', 'STORYBOARD'].includes(mode)) throw new Error('图片提示词模式必须是 ASSET 或 STORYBOARD。');
-  const core = [
-    style?.visual_style,
-    parts?.subject,
-    parts?.details,
-    parts?.view,
-    mode === 'STORYBOARD' ? parts?.atmosphere : '',
-    ...(asArray(style?.quality_constraints)),
-    `世界观约束：${asArray(style?.era_constraints?.allowed_elements).join('、')}`,
-    `禁止元素：${asArray(style?.era_constraints?.forbidden_elements).join('、')}`,
-  ].filter(isNonEmpty);
-  if (mode === 'STORYBOARD' && isNonEmpty(parts?.action)) core.splice(2, 0, parts.action);
-  if (mode === 'ASSET' && parts?.action) throw new Error('ASSET 模式禁止混入剧情动作；剧情内容请使用 STORYBOARD 模式。');
-  return core.join('；');
+  if (!['ASSET', 'STORYBOARD'].includes(mode) && ![
+    'CHARACTER_ASSET', 'CHARACTER_VIEWS', 'CHARACTER_EXPRESSION', 'CHARACTER_DERIVATIVE',
+    'SCENE_MASTER', 'SCENE_VARIANT', 'PROP_ASSET',
+  ].includes(mode)) throw new Error('图片提示词模式无效。');
+  return buildPrompt(style, parts, mode).prompt;
+}
+
+export function buildPromptForProject(context, parts, requestedType) {
+  const taskType = String(requestedType ?? parts.task_type ?? '').toUpperCase();
+  let promptParts = { ...parts };
+  if (parts.task_id) {
+    const task = list(context.data, 'production_tasks').find((entry) => entry.id === parts.task_id);
+    if (!task) throw new Error(`生图预检失败：找不到任务 ${parts.task_id}。`);
+    promptParts = {
+      ...task,
+      ...promptParts,
+      reference_asset_version_ids: promptParts.reference_asset_version_ids ?? task.reference_asset_version_ids,
+    };
+    if (task.shot_id) promptParts.shot_id = task.shot_id;
+  }
+  if (promptParts.shot_id) {
+    const shot = list(context.data, 'storyboard').find((entry) => entry.id === promptParts.shot_id);
+    if (!shot) throw new Error(`生图预检失败：找不到分镜 ${promptParts.shot_id}。`);
+    promptParts = {
+      ...shot,
+      ...promptParts,
+      reference_asset_version_ids: promptParts.reference_asset_version_ids ?? shot.asset_version_ids,
+      scene_id: promptParts.scene_id ?? shot.scene_id,
+      character_ids: promptParts.character_ids ?? shot.character_ids,
+      prop_ids: promptParts.prop_ids ?? shot.prop_ids,
+    };
+  }
+  const referenceIds = promptParts.reference_asset_version_ids ??
+    asArray(promptParts.references).map((reference) => typeof reference === 'string' ? reference : reference.version_id);
+  const assets = assetVersions(context.data);
+  const references = asArray(referenceIds).map((id) => {
+    const asset = assets.get(id);
+    if (!asset) throw new Error(`生图预检失败：参考资产版本不存在 ${id}。`);
+    if (asset.approval_status !== 'APPROVED' || asset.stale) {
+      throw new Error(`生图预检失败：参考资产 ${id} 未批准或已过期。`);
+    }
+    const file = safePath(context.root, asset.file);
+    if (!file || !fs.existsSync(file) || !imageDimensions(fs.readFileSync(file))) {
+      throw new Error(`生图预检失败：参考图 ${id} 缺失或不是可读取的 PNG/JPEG/WebP。`);
+    }
+    return {
+      ...asset,
+      role: asset.parent_asset_version_id ? 'variant' : 'master',
+    };
+  });
+  promptParts.references = references;
+  if (promptParts.character_id) promptParts.character_ids ??= [promptParts.character_id];
+  const characterId = promptParts.character_id ?? asArray(promptParts.character_ids)[0];
+  const character = list(context.data, 'characters').find((entry) => entry.id === characterId);
+  if (character) {
+    if (!isNonEmpty(character.identity_anchor_id)) {
+      throw new Error('生图预检失败：人物档案缺少 identity_anchor_id。');
+    }
+    if (promptParts.identity_anchor_id && character.identity_anchor_id &&
+        promptParts.identity_anchor_id !== character.identity_anchor_id) {
+      throw new Error('生图预检失败：提示词身份锚点与人物档案不一致。');
+    }
+    promptParts.identity_anchor_id ??= character.identity_anchor_id;
+    promptParts.identity_anchor ??= character.identity_anchor;
+    if (!isNonEmpty(promptParts.appearance_period)) {
+      throw new Error('生图预检失败：人物当前时期未明确。');
+    }
+    if (['CHARACTER_DERIVATIVE', 'CHARACTER_VIEWS', 'CHARACTER_EXPRESSION'].includes(taskType) &&
+        !isNonEmpty(promptParts.costume_variant)) {
+      throw new Error('生图预检失败：人物服装/状态变体未明确。');
+    }
+    const factionId = promptParts.faction_id ?? character.faction_id;
+    if (factionId) {
+      if (!isNonEmpty(promptParts.faction_rank) || !isNonEmpty(promptParts.costume_context)) {
+        throw new Error('生图预检失败：人物服装缺少势力等级或服装场景。');
+      }
+      const rule = list(context.data, 'costume_rules').find((entry) =>
+        entry.faction_id === factionId && entry.rank === promptParts.faction_rank &&
+        entry.costume_context === promptParts.costume_context,
+      );
+      if (!rule) throw new Error('生图预检失败：找不到与势力、等级和服装场景对应的服饰规则。');
+      promptParts.faction_costume_rule = rule;
+    }
+    if (promptParts.transformation_type && promptParts.transformation_type !== 'COSTUME_CHANGE') {
+      const evidenceIds = new Set(list(context.data, 'source_evidence').map((entry) => entry.source_id));
+      if (promptParts.identity_change_allowed !== true ||
+          !asArray(promptParts.identity_change_evidence).length ||
+          asArray(promptParts.identity_change_evidence).some((id) => !evidenceIds.has(id))) {
+        throw new Error('生图预检失败：特殊身份变化缺少明确授权或有效原文证据。');
+      }
+    }
+  }
+  return buildPrompt(context.data.visual_style, promptParts, taskType);
 }
 
 export function affectedAssetVersions(data, changedVersionId) {
@@ -1074,14 +2099,15 @@ export function submitPhaseForReview(context, phaseId) {
   if (phase.status !== 'IN_PROGRESS') throw new Error(`阶段必须为 IN_PROGRESS 才能提交，目前为 ${phase.status}。`);
   phase.status = 'VALIDATING';
   const issues = validateProject(context, { stage: phaseId, includeApprovalDrift: false });
+  const failed = issues.some((entry) => entry.severity !== 'WARNING');
   context.data.quality_reports.reports.push({
     id: `gate-${phaseId}-${Date.now()}`,
     scope: phaseId,
-    status: issues.length ? 'FAILED' : 'PENDING_REVIEW',
+    status: failed ? 'FAILED' : 'PENDING_REVIEW',
     created_at: now(),
     issues,
   });
-  phase.status = issues.length ? 'FAILED' : 'PENDING_REVIEW';
+  phase.status = failed ? 'FAILED' : 'PENDING_REVIEW';
   saveContext(context);
   return issues;
 }
@@ -1150,21 +2176,19 @@ export function recordSkip(context, phaseId, by, reason) {
 }
 
 export function refreshStalePhases(context) {
+  const sourceDependentsChanged = markChangedSourceDependents(context);
   const changed = [];
-  let staleSeen = false;
   for (const phase of context.project.phases) {
     if (phase.status === 'APPROVED' && phase.snapshot_sha256 &&
         phaseSnapshot(context, phase.id) !== phase.snapshot_sha256) {
-      staleSeen = true;
-      phase.status = 'STALE';
-      changed.push(phase.id);
-    } else if (staleSeen && ['APPROVED', 'PENDING_REVIEW', 'IN_PROGRESS'].includes(phase.status)) {
       phase.status = 'STALE';
       changed.push(phase.id);
     }
   }
   if (changed.length) {
     context.project.current_phase = changed[0];
+  }
+  if (changed.length || sourceDependentsChanged) {
     saveContext(context);
   }
   return changed;
@@ -1176,21 +2200,25 @@ function escapeHtml(value) {
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
-function reportAssetPath(root, file) {
+function reportAssetPath(root, file, reportFile = 'reports/review.html') {
   const resolved = safePath(root, file);
   if (!resolved || !fs.existsSync(resolved)) return null;
-  return `../${String(file).split(path.sep).join('/')}`.split('/').map((part, index) => index ? encodeURIComponent(part) : part).join('/');
+  const relative = path.posix.relative(
+    path.posix.dirname(toPosixPath(reportFile)),
+    toPosixPath(file),
+  );
+  return relative.split('/').map((part) => part === '..' ? part : encodeURIComponent(part)).join('/');
 }
 
-export function renderReport(context) {
+export function renderReport(context, reportFile = 'reports/review.html') {
   const { project, data, root } = context;
   const issues = validateProject(context);
   const phaseRecords = asArray(project.phases);
   const phases = phaseRecords.map((phase) => `<li class="phase ${escapeHtml(String(phase.status ?? 'unknown').toLowerCase())}"><b>${escapeHtml(phase.id)}</b><span>${escapeHtml(phase.name)}</span><strong>${escapeHtml(phase.status)}</strong></li>`).join('');
   const reviewButtons = () => `<div class="review-actions">${['PENDING', 'APPROVED', 'REJECTED', 'CHANGES_REQUESTED', 'REGENERATE'].map((status) => `<button data-review="${status}">${status}</button>`).join('')}</div>`;
   const assets = list(data, 'asset_registry').map((asset) => {
-    const image = reportAssetPath(root, asset.file);
-    return `<article class="card" data-id="${escapeHtml(asset.version_id)}"><h3>${escapeHtml(asset.asset_id)} · ${escapeHtml(asset.asset_type)}</h3><p>版本 ${escapeHtml(asset.version_id)} · ${escapeHtml(asset.approval_status)}${asset.parent_asset_version_id ? ` · 父版本 ${escapeHtml(asset.parent_asset_version_id)}` : ''}${asset.stale ? ' · STALE' : ''}</p>${image ? `<img loading="lazy" src="${image}" alt="${escapeHtml(asset.asset_id)}">` : '<div class="placeholder">尚无真实图片文件</div>'}<p>${escapeHtml(asset.file ?? '')}</p><p class="prompt">${escapeHtml(asset.prompt ?? '')}</p>${reviewButtons()}</article>`;
+    const image = reportAssetPath(root, asset.file, reportFile);
+    return `<article class="card" data-id="${escapeHtml(asset.version_id)}"><h3>${escapeHtml(asset.asset_id)} · ${escapeHtml(asset.asset_type)}</h3><p>版本 ${escapeHtml(asset.version_id)} · ${escapeHtml(asset.approval_status)}${asset.parent_asset_version_id ? ` · 父版本 ${escapeHtml(asset.parent_asset_version_id)}` : ''}${asset.view_type ? ` · 视角 ${escapeHtml(asset.view_type)}` : ''}${asset.appearance_period ? ` · 时期 ${escapeHtml(asset.appearance_period)}` : ''}${asset.verification_level ? ` · 媒体验证 ${escapeHtml(asset.verification_level)}` : ''}${asset.stale ? ' · STALE' : ''}</p>${image ? `<img loading="lazy" src="${image}" alt="${escapeHtml(asset.asset_id)}">` : '<div class="placeholder">尚无真实图片文件</div>'}<p>${escapeHtml(asset.file ?? '')}</p><p class="prompt">${escapeHtml(asset.prompt ?? '')}</p>${asset.negative_prompt ? `<p>负面提示词：${escapeHtml(asset.negative_prompt)}</p>` : ''}${reviewButtons()}</article>`;
   }).join('') || '<p class="empty">尚未登记资产。</p>';
   const entityCards = (items, label, describe) => items.map((item) =>
     `<article class="card"><h3>${escapeHtml(item.id)} · ${escapeHtml(item.name)}</h3><p>${escapeHtml(describe(item) || '暂无补充描述')}</p><p>原著出处：${escapeHtml(asArray(item.source_refs).join(', ') || '未记录')}</p>${asArray(item.claims).map((claim) => `<p>${escapeHtml(claim.provenance)} · ${escapeHtml(claim.text)}</p>`).join('')}</article>`,
@@ -1199,18 +2227,18 @@ export function renderReport(context) {
   const sceneCards = entityCards(list(data, 'scenes'), '场景', (item) => `${item.era ?? ''} · ${item.location ?? ''} · ${asArray(item.visual_anchors).join('、')}`);
   const propCards = entityCards(list(data, 'props'), '道具', (item) => `${item.material ?? ''} · ${item.function ?? ''}`);
   const shots = list(data, 'storyboard').map((shot) => {
-    const image = reportAssetPath(root, shot.image_file);
+    const image = reportAssetPath(root, shot.image_file, reportFile);
     return `<article class="card" data-id="${escapeHtml(shot.id)}"><h3>${escapeHtml(shot.id)} · ${escapeHtml(shot.screenplay_scene_id)}</h3><p>${escapeHtml(shot.description ?? shot.action ?? '')} · ${escapeHtml(shot.duration_seconds)} 秒 · ${escapeHtml(shot.review_status ?? '待审核')}</p><p>资产版本：${escapeHtml(asArray(shot.asset_version_ids).join(', '))}</p>${image ? `<img loading="lazy" src="${image}" alt="${escapeHtml(shot.id)}">` : '<div class="placeholder">尚无分镜图</div>'}<p class="prompt">${escapeHtml(shot.prompt ?? '')}</p>${reviewButtons()}</article>`;
   }).join('') || '<p class="empty">尚未登记分镜。</p>';
   const screenplay = list(data, 'screenplay').map((scene) =>
     `<article class="card"><h3>${escapeHtml(scene.id)} · ${escapeHtml(scene.chapter_id)}</h3><p>原著事件：${escapeHtml(asArray(scene.event_ids).join(', '))} · 场景：${escapeHtml(scene.scene_id)} · 预计 ${escapeHtml(scene.estimated_duration_seconds ?? '')} 秒</p>${asArray(scene.segments).map((segment) => `<p><b>${escapeHtml(segment.type)}</b> ${escapeHtml(segment.speaker_id ?? '')} · ${escapeHtml(segment.duration_seconds ?? '')} 秒<br>${escapeHtml(segment.text)}</p>`).join('')}</article>`,
   ).join('') || '<p class="empty">尚未登记剧本场次。</p>';
   const videos = list(data, 'production_tasks').map((task) => {
-    const video = reportAssetPath(root, task.output_file);
-    return `<article class="card"><h3>${escapeHtml(task.id)} · ${escapeHtml(task.status)}</h3><p>镜头 ${escapeHtml(task.shot_id ?? '')} · ${escapeHtml(task.model ?? '')} · ${escapeHtml(task.duration_seconds ?? '')} 秒</p><p>${escapeHtml(task.output_file ?? '')}</p>${video ? `<video controls preload="metadata" src="${video}"></video>` : '<div class="placeholder">尚无真实视频输出</div>'}<p>${escapeHtml(task.failure_reason ?? '')}</p></article>`;
+    const video = reportAssetPath(root, task.output_file, reportFile);
+    return `<article class="card"><h3>${escapeHtml(task.id)} · ${escapeHtml(task.status)}</h3><p>镜头 ${escapeHtml(task.shot_id ?? '')} · ${escapeHtml(task.model ?? '')} · ${escapeHtml(task.duration_seconds ?? '')} 秒 · 验证 ${escapeHtml(task.verification_level ?? '未记录')}</p><p>${escapeHtml(task.output_file ?? '')}</p>${video ? `<video controls preload="metadata" src="${video}"></video>` : '<div class="placeholder">尚无真实视频输出</div>'}<p>${escapeHtml(task.failure_reason ?? '')}</p></article>`;
   }).join('') || '<p class="empty">尚无视频任务。</p>';
   const audio = list(data, 'audio_timeline').map((track) => {
-    const file = reportAssetPath(root, track.file);
+    const file = reportAssetPath(root, track.file, reportFile);
     return `<article class="card"><h3>${escapeHtml(track.id)} · ${escapeHtml(track.type)}</h3><p>${escapeHtml(track.start_seconds ?? '')} 秒起 · ${escapeHtml(track.duration_seconds ?? '')} 秒 · ${escapeHtml(track.status ?? '')}</p>${file ? `<audio controls preload="metadata" src="${file}"></audio>` : '<div class="placeholder">尚无真实音频文件</div>'}<p>${escapeHtml(track.notes ?? '')}</p></article>`;
   }).join('') || '<p class="empty">尚无音频时间轴。</p>';
   const events = list(data, 'story_events');
@@ -1226,7 +2254,7 @@ export function renderReport(context) {
   ).join('') || '<p class="empty">暂无质量报告。</p>';
   const factionCards = list(data, 'factions').map((faction) => {
     const rules = list(data, 'costume_rules').filter((rule) => rule.faction_id === faction.id);
-    return `<article class="card"><h3>${escapeHtml(faction.name)} · ${escapeHtml(faction.id)}</h3><p>等级：${escapeHtml(asArray(faction.class_system).join(' → '))}</p><p>视觉识别：${escapeHtml(faction.visual_identity?.main_color ?? '')} · ${escapeHtml(faction.visual_identity?.pattern ?? '')}</p>${rules.map((rule) => `<p>${escapeHtml(rule.rank)} · ${escapeHtml(rule.color)} · ${escapeHtml(rule.material)} · ${escapeHtml(rule.structure)} · ${escapeHtml(rule.pattern)} · ${escapeHtml(rule.accessories)} · 华丽度 ${escapeHtml(rule.ornament_score)}</p>`).join('')}</article>`;
+    return `<article class="card"><h3>${escapeHtml(faction.name)} · ${escapeHtml(faction.id)}</h3><p>等级：${escapeHtml(asArray(faction.class_system).join(' → ') || 'UNKNOWN · 待用户确认')}</p><p>视觉识别：${escapeHtml(faction.visual_identity?.main_color ?? '')} · ${escapeHtml(faction.visual_identity?.pattern ?? '')}</p><table><thead><tr><th>等级/场景</th><th>面料</th><th>工艺</th><th>纹样</th><th>标识</th><th>配饰</th><th>正式度</th><th>华丽度</th><th>来源/例外</th></tr></thead><tbody>${rules.map((rule) => `<tr><td>${escapeHtml(rule.rank)} · ${escapeHtml(rule.costume_context)}</td><td>${escapeHtml(rule.material)} (${escapeHtml(rule.material_grade ?? 'UNKNOWN')})</td><td>${escapeHtml(rule.craftsmanship_grade ?? 'UNKNOWN')}</td><td>${escapeHtml(rule.pattern)}</td><td>${escapeHtml(rule.insignia)} (${escapeHtml(rule.insignia_grade ?? 'UNKNOWN')})</td><td>${escapeHtml(rule.accessories)} (${escapeHtml(rule.accessory_grade ?? 'UNKNOWN')})</td><td>${escapeHtml(rule.garment_formality)}</td><td>${escapeHtml(rule.ornament_score)}</td><td>${escapeHtml(asArray(rule.source_refs).join(', '))} ${escapeHtml(rule.exception_reason ?? '')}</td></tr>`).join('')}</tbody></table></article>`;
   }).join('') || '<p class="empty">尚未登记势力或服饰等级。</p>';
   const stylePanel = `<p>${escapeHtml(data.visual_style.visual_style ?? '')} · ${escapeHtml(data.visual_style.aspect_ratio ?? '')}</p><p>色彩：${escapeHtml(asArray(data.visual_style.color_palette).join('、'))}</p><p>光线：${escapeHtml(asArray(data.visual_style.lighting_rules).join('；'))}</p><p>允许元素：${escapeHtml(asArray(data.visual_style.era_constraints?.allowed_elements).join('、'))}</p><p>禁止元素：${escapeHtml(asArray(data.visual_style.era_constraints?.forbidden_elements).join('、'))}</p>`;
   const payload = JSON.stringify({ project_id: project.project_id, approvals: asArray(data.approvals?.approvals) }).replace(/</g, '\\u003c');
@@ -1237,7 +2265,7 @@ export function renderReport(context) {
 </style></head><body><header><h1>${escapeHtml(project.title)} · 漫剧制作审核</h1><p>当前阶段：${escapeHtml(project.current_phase ?? '全部阶段已完成或尚未开始')} · 原著忠实模式：${project.source_fidelity ? '开启' : '关闭'}</p></header>
 <div class="layout"><nav><b>审核导航</b><a href="#progress">阶段进度</a><a href="#art-direction">视觉体系与势力服饰</a><a href="#characters">人物</a><a href="#scenes">场景</a><a href="#props">道具</a><a href="#assets">资产与版本</a><a href="#story">原著事件对账</a><a href="#screenplay">剧本</a><a href="#storyboard">分镜</a><a href="#videos">视频任务</a><a href="#audio">音频时间轴</a><a href="#quality">质检结果</a><a href="#approvals">阶段确认</a><div class="actions"><button id="export-review">导出本地审核选择</button></div></nav><main>
 <section id="progress"><h2>阶段进度</h2><p>${phaseRecords.filter((phase) => phase.status === 'APPROVED').length} / ${phaseRecords.length} 阶段已确认</p><ol class="phase-list">${phases}</ol><p class="notice">阶段确认必须由用户明确作出。报告内的图片审核按钮只保存浏览器本地选择，不会更改项目 JSON；请将导出结果交给 Agent 并通过 CLI 记录。</p></section>
-<section id="art-direction"><h2>视觉体系与势力服饰</h2>${stylePanel}<div class="grid">${factionCards}</div></section>
+<section id="art-direction"><h2>视觉体系与势力服饰等级对照</h2>${stylePanel}<div class="grid">${factionCards}</div></section>
 <section id="characters"><h2>人物档案</h2><div class="grid">${characterCards}</div></section>
 <section id="scenes"><h2>场景档案</h2><div class="grid">${sceneCards}</div></section>
 <section id="props"><h2>道具档案</h2><div class="grid">${propCards}</div></section>
@@ -1276,7 +2304,7 @@ function usage() {
   node scripts/manhua.mjs validate <项目目录> [--stage <阶段ID>]
   node scripts/manhua.mjs report <项目目录> [报告路径]
   node scripts/manhua.mjs status <项目目录>
-  node scripts/manhua.mjs prompt <项目目录> <ASSET|STORYBOARD> <parts.json>
+  node scripts/manhua.mjs prompt <项目目录> <任务类型> <parts.json>
   node scripts/manhua.mjs impact <项目目录> <资产版本ID>
   node scripts/manhua.mjs begin <项目目录> <阶段ID>
   node scripts/manhua.mjs submit <项目目录> <阶段ID>
@@ -1306,7 +2334,7 @@ export function main(argv) {
       const stageId = stageIndex >= 0 ? args[stageIndex + 1] : null;
       const issues = validateProject(context, { stage: stageId });
       printIssues(issues);
-      if (issues.length) process.exitCode = 1;
+      if (issues.some((entry) => entry.severity !== 'WARNING')) process.exitCode = 1;
       return;
     }
     if (command === 'report') {
@@ -1315,7 +2343,7 @@ export function main(argv) {
       const file = safePath(context.root, output);
       if (!file) throw new Error('报告路径必须位于项目目录内。');
       fs.mkdirSync(path.dirname(file), { recursive: true });
-      fs.writeFileSync(file, renderReport(context), 'utf8');
+      fs.writeFileSync(file, renderReport(context, toPosixPath(output)), 'utf8');
       console.log(`已生成审核报告：${path.relative(context.root, file)}`);
       return;
     }
@@ -1329,7 +2357,11 @@ export function main(argv) {
       const context = loadProject(args[0]);
       const file = safePath(context.root, args[2]);
       if (!file || !fs.existsSync(file)) throw new Error(`找不到项目内的提示词片段 JSON：${args[2]}`);
-      console.log(buildImagePrompt(context.data.visual_style, readJson(file), String(args[1] ?? '').toUpperCase()));
+      console.log(JSON.stringify(
+        buildPromptForProject(context, readJson(file), String(args[1] ?? '').toUpperCase()),
+        null,
+        2,
+      ));
       return;
     }
     if (command === 'impact') {
@@ -1347,7 +2379,7 @@ export function main(argv) {
       const context = loadProject(args[0]);
       const issues = submitPhaseForReview(context, args[1]);
       printIssues(issues);
-      if (issues.length) process.exitCode = 1;
+      if (issues.some((entry) => entry.severity !== 'WARNING')) process.exitCode = 1;
       else console.log('质量门通过，阶段进入 PENDING_REVIEW；等待用户明确确认。');
       return;
     }

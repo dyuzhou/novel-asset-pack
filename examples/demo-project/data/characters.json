@@ -8,12 +8,14 @@
       "identity": "旧渡口摆渡人的女儿",
       "faction_id": "faction-001",
       "identity_anchor": "原文未描述面容，造型待用户确认",
+      "identity_anchor_id": "identity-character-001",
       "source_refs": ["chapter-001"],
       "claims": [
         {
           "text": "阿禾在旧渡口收船。",
           "provenance": "SOURCE_FACT",
-          "source_refs": ["chapter-001"]
+          "source_refs": ["chapter-001"],
+          "evidence_refs": ["evidence-001"]
         },
         {
           "text": "阿禾的具体面貌。",

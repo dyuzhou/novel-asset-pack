@@ -8,6 +8,8 @@ node scripts/manhua.mjs init "示例作品" /path/to/AI-Manhua
 
 空目录或不存在的目录均可。非空目标会被拒绝，避免覆盖既有项目。初始化会创建 `project.json`、`data/*.json`、世界观文档骨架和固定平铺素材目录。
 
+首次运行脚本前，在 Skill 仓库安装锁定依赖：`npm ci`。质量门会通过 AJV 统一校验 JSON Schema。
+
 ## 制作与确认
 
 `SKILL.md` 是 Agent 执行约定。脚本只做数据校验、状态持久化和报告，不调用媒体模型。

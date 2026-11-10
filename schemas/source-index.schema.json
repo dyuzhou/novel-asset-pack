@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Source index",
+  "type": "object",
+  "required": ["chapters"],
+  "properties": {
+    "chapters": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "source_file", "source_file_hash", "reading_status"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "source_file": { "type": "string", "minLength": 1 },
+          "source_file_hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+          "reading_status": { "enum": ["UNREAD", "READ", "IN_PROGRESS"] }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

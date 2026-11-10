@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Source evidence",
+  "type": "object",
+  "required": ["evidence"],
+  "properties": {
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["source_id", "chapter_id", "paragraph_id", "start_offset", "end_offset", "evidence_text", "evidence_hash", "source_file", "source_file_hash"],
+        "properties": {
+          "source_id": { "type": "string", "minLength": 1 },
+          "chapter_id": { "type": "string", "minLength": 1 },
+          "paragraph_id": { "type": "string", "minLength": 1 },
+          "start_offset": { "type": "integer", "minimum": 0 },
+          "end_offset": { "type": "integer", "minimum": 1 },
+          "evidence_text": { "type": "string", "minLength": 1, "maxLength": 1000 },
+          "evidence_hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+          "source_file": { "type": "string", "minLength": 1 },
+          "source_file_hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

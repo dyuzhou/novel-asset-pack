@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Audio timeline",
+  "type": "object",
+  "required": ["tracks"],
+  "properties": {
+    "tracks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "type", "status"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "type": { "enum": ["DIALOGUE", "NARRATION", "INNER_MONOLOGUE", "AMBIENCE", "SFX", "BACKGROUND_MUSIC"] },
+          "status": { "enum": ["PLANNED", "RUNNING", "COMPLETED", "FAILED", "NOT_APPLICABLE", "STALE"] },
+          "verification_level": { "enum": ["FFPROBE", "BASIC"] },
+          "start_seconds": { "type": "number", "minimum": 0 },
+          "duration_seconds": { "type": "number", "exclusiveMinimum": 0 }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

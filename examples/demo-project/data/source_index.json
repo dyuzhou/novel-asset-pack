@@ -4,8 +4,9 @@
       "id": "chapter-001",
       "title": "纸灯",
       "source_file": "source/chapter-001.txt",
+      "source_file_hash": "f3ade18912a7353e8946f0ec45e8333acea435b07aef841e301694a9c1e292ef",
       "reading_status": "READ",
-      "paragraph_count": 1
+      "paragraph_count": 3
     }
   ]
 }

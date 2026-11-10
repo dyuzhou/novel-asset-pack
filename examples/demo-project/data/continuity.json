@@ -1,0 +1,28 @@
+{
+  "chapters": [
+    {
+      "id": "continuity-001",
+      "chapter_id": "chapter-001",
+      "read_status": "READ",
+      "inherited_from_chapter_id": null,
+      "confirmed_event_ids": ["event-001", "event-002"],
+      "character_states": [
+        {
+          "character_id": "character-001",
+          "appearance_period": "年龄未明，当前篇章状态待确认",
+          "costume_variant": "渡口日常服，细节待确认",
+          "injuries": [],
+          "held_prop_ids": ["prop-001"],
+          "current_scene_id": "scene-001"
+        }
+      ],
+      "unresolved_questions": [
+        {
+          "id": "question-001",
+          "question": "阿禾的年龄与面部识别特征未由原文明确",
+          "status": "OPEN"
+        }
+      ]
+    }
+  ]
+}

@@ -11,7 +11,8 @@
         {
           "text": "纸灯没有火但映出温暖的光。",
           "provenance": "SOURCE_FACT",
-          "source_refs": ["chapter-001"]
+          "source_refs": ["chapter-001"],
+          "evidence_refs": ["evidence-001"]
         }
       ]
     }

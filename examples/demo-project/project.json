@@ -5,14 +5,20 @@
   "created_at": "2026-11-10T03:32:40.152Z",
   "source_scope": "虚构短篇《纸灯》第一章",
   "source_files": [
-    "source/chapter-001.txt"
+    {
+      "path": "source/chapter-001.txt",
+      "sha256": "f3ade18912a7353e8946f0ec45e8333acea435b07aef841e301694a9c1e292ef"
+    }
   ],
   "source_fidelity": true,
   "aspect_ratio": "16:9",
   "world_bible": "world/world_bible.md",
   "data_files": {
     "source_index": "data/source_index.json",
+    "continuity": "data/continuity.json",
+    "source_evidence": "data/source_evidence.json",
     "story_events": "data/story_events.json",
+    "event_beats": "data/event_beats.json",
     "characters": "data/characters.json",
     "factions": "data/factions.json",
     "scenes": "data/scenes.json",

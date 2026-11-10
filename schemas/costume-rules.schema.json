@@ -8,7 +8,7 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["id", "faction_id", "rank", "rank_order", "color", "material", "structure", "pattern", "accessories", "weapon", "insignia", "ornament_level", "ornament_score"],
+        "required": ["id", "faction_id", "rank", "rank_order", "color", "material", "structure", "pattern", "accessories", "weapon", "insignia", "ornament_level", "ornament_score", "material_grade", "craftsmanship_grade", "insignia_grade", "accessory_grade", "garment_formality", "costume_context", "source_refs"],
         "properties": {
           "id": { "type": "string", "minLength": 1 },
           "faction_id": { "type": "string", "minLength": 1 },
@@ -22,7 +22,17 @@
           "weapon": { "type": "string", "minLength": 1 },
           "insignia": { "type": "string", "minLength": 1 },
           "ornament_level": { "type": "string", "minLength": 1 },
-          "ornament_score": { "type": "number", "minimum": 1, "maximum": 5 }
+          "ornament_score": { "type": "number", "minimum": 1, "maximum": 5 },
+          "material_grade": { "type": ["integer", "string"], "minimum": 1, "maximum": 5 },
+          "craftsmanship_grade": { "type": ["integer", "string"], "minimum": 1, "maximum": 5 },
+          "insignia_grade": { "type": ["integer", "string"], "minimum": 1, "maximum": 5 },
+          "accessory_grade": { "type": ["integer", "string"], "minimum": 1, "maximum": 5 },
+          "garment_formality": { "type": "string", "minLength": 1 },
+          "costume_context": { "type": "string", "minLength": 1 },
+          "exception_reason": { "type": "string" },
+          "exception_approved_by": { "type": "string" },
+          "exception_evidence_refs": { "type": "array", "items": { "type": "string" } },
+          "source_refs": { "type": "array", "items": { "type": "string" } }
         },
         "additionalProperties": true
       }

@@ -13,6 +13,12 @@
           "id": { "type": "string", "minLength": 1 },
           "name": { "type": "string", "minLength": 1 },
           "faction_id": { "type": ["string", "null"] },
+          "identity_anchor_id": { "type": "string", "minLength": 1 },
+          "required_views": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": { "enum": ["FRONT", "SIDE", "BACK", "FACE", "EXPRESSION", "COSTUME_DETAIL"] }
+          },
           "source_refs": { "type": "array", "items": { "type": "string" } },
           "claims": {
             "type": "array",
@@ -23,6 +29,9 @@
                 "text": { "type": "string", "minLength": 1 },
                 "provenance": { "enum": ["SOURCE_FACT", "INFERENCE", "ART_DECISION", "UNKNOWN"] },
                 "source_refs": { "type": "array", "items": { "type": "string" } },
+                "evidence_refs": { "type": "array", "items": { "type": "string" } },
+                "basis": { "type": "string" },
+                "reason": { "type": "string" },
                 "note": { "type": "string" }
               }
             }

@@ -15,6 +15,7 @@
           "text": "阿禾的父亲曾经营渡船。",
           "provenance": "INFERENCE",
           "source_refs": ["chapter-001"],
+          "basis": "由阿禾收船及父亲失踪的描述推断，待用户确认",
           "note": "由阿禾收船及父亲失踪的描述推断，待用户确认"
         }
       ]

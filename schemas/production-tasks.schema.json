@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Production tasks",
+  "type": "object",
+  "required": ["tasks"],
+  "properties": {
+    "tasks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "kind", "status"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "kind": { "enum": ["IMAGE", "VIDEO", "FINAL_RENDER"] },
+          "status": { "enum": ["QUEUED", "RUNNING", "FAILED", "COMPLETED", "CANCELLED", "STALE"] },
+          "verification_level": { "enum": ["FFPROBE", "BASIC"] },
+          "duration_seconds": { "type": "number", "exclusiveMinimum": 0 },
+          "reference_asset_version_ids": { "type": "array", "items": { "type": "string" } }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}
